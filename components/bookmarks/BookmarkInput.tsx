@@ -24,9 +24,21 @@ export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
       }
     };
 
+    const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+      if (mode !== "add") return;
+
+      const plainText = e.clipboardData.getData("text");
+
+      // Preserve newlines in plain text
+      if (plainText.includes("\n")) {
+        e.preventDefault();
+        onAddChange(plainText);
+      }
+    };
+
     return (
       <form onSubmit={handleSubmit}>
-        <div className="flex items-center gap-3 rounded-xl ring-1 ring-neutral-200 shadow px-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl ring-1 ring-neutral-200 shadow-sm focus-within:shadow focus-within:ring-neutral-300 px-4 py-3 transition-shadow">
           {mode === "add" ? (
             <svg
               className="h-5 w-5 text-neutral-500"
@@ -63,6 +75,7 @@ export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
                 ? onAddChange(e.target.value)
                 : onSearchChange(e.target.value)
             }
+            onPaste={handlePaste}
           />
           <div className="flex items-center gap-2">
             {mode === "add" ? (

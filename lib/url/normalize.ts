@@ -59,7 +59,8 @@ export function normalizeUrl(input: string): string | null {
   return url.toString();
 }
 
-export function urlDomain(input: string) {
+export function urlDomain(input: string | null) {
+  if (!input) return "";
   try {
     return new URL(input).hostname.replace(/^www\./, "");
   } catch {

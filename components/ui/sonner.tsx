@@ -5,7 +5,7 @@ import { Toaster as Sonner, type ToasterProps } from "sonner";
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
-      duration={5000}
+      duration={4000}
       className="toaster group"
       style={{ "--width": "400px" } as React.CSSProperties}
       toastOptions={{

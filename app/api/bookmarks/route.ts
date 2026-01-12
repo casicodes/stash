@@ -11,12 +11,45 @@ const CreateBookmarkSchema = z.object({
   tags: z.array(z.string().min(1)).optional()
 });
 
-export async function GET(req: Request) {
+// CORS headers for browser extension
+function corsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
+// Handle preflight requests for CORS
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders() });
+}
+
+// Get user from Bearer token (extension) or cookie auth (web app)
+async function getAuthenticatedUser(req: Request) {
   const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const authHeader = req.headers.get("Authorization");
+
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const { data } = await supabase.auth.getUser(token);
+    return data.user;
+  }
+
+  const { data } = await supabase.auth.getUser();
+  return data.user;
+}
+
+export async function GET(req: Request) {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: corsHeaders() }
+    );
+  }
+
+  const supabase = await createClient();
 
   const { searchParams } = new URL(req.url);
   const filterTag = searchParams.get("tag");
@@ -42,7 +75,12 @@ export async function GET(req: Request) {
       .eq("tag", filterTag)
       .eq("user_id", user.id);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500, headers: corsHeaders() }
+      );
+    }
 
     // Flatten and filter archived
     const bookmarks = (data ?? [])
@@ -50,7 +88,7 @@ export async function GET(req: Request) {
       .filter((b: any) => b && !b.archived)
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    return NextResponse.json({ bookmarks });
+    return NextResponse.json({ bookmarks }, { headers: corsHeaders() });
   }
 
   // Default: fetch all bookmarks with their tags
@@ -71,7 +109,12 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: corsHeaders() }
+    );
+  }
 
   // Transform tags array
   const bookmarks = (data ?? []).map((b: any) => ({
@@ -80,19 +123,28 @@ export async function GET(req: Request) {
     bookmark_tags: undefined,
   }));
 
-  return NextResponse.json({ bookmarks });
+  return NextResponse.json({ bookmarks }, { headers: corsHeaders() });
 }
 
 export async function POST(req: Request) {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: corsHeaders() }
+    );
+  }
+
   const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const json = await req.json().catch(() => null);
   const parsed = CreateBookmarkSchema.safeParse(json);
-  if (!parsed.success) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid payload" },
+      { status: 400, headers: corsHeaders() }
+    );
+  }
 
   const input = parsed.data.url.trim();
   const normalized = normalizeUrl(input);
@@ -127,7 +179,10 @@ export async function POST(req: Request) {
 
   if (insertRes.error) {
     // likely duplicate
-    return NextResponse.json({ error: insertRes.error.message }, { status: 400 });
+    return NextResponse.json(
+      { error: insertRes.error.message },
+      { status: 400, headers: corsHeaders() }
+    );
   }
 
   // Auto-tag based on URL type (ignore errors)
@@ -166,6 +221,9 @@ export async function POST(req: Request) {
     }).catch(() => {});
   }
 
-  return NextResponse.json({ bookmark: { ...insertRes.data, tags } });
+  return NextResponse.json(
+    { bookmark: { ...insertRes.data, tags } },
+    { headers: corsHeaders() }
+  );
 }
 

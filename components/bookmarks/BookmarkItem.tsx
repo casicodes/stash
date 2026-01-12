@@ -1,7 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import type { Bookmark } from "@/types/bookmark";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type BookmarkItemProps = {
   bookmark: Bookmark;
@@ -19,6 +29,31 @@ function getFaviconUrl(url: string): string | null {
   }
 }
 
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s*/gm, "") // Remove heading markers (with or without space)
+    .replace(/\*\*(.+?)\*\*/g, "$1") // Remove bold
+    .replace(/\*(.+?)\*/g, "$1") // Remove italic
+    .replace(/~~(.+?)~~/g, "$1") // Remove strikethrough
+    .replace(/`{1,3}[^`]*`{1,3}/g, "") // Remove code blocks and inline code
+    .replace(/^\s*[-*+]\s+/gm, "") // Remove list markers
+    .replace(/^\s*\d+\.\s+/gm, "") // Remove numbered list markers
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // Remove links, keep text
+    .replace(/^>\s*/gm, "") // Remove blockquote markers
+    .replace(/\n+/g, " ") // Replace newlines with spaces for single line display
+    .replace(/\s+/g, " ") // Collapse multiple spaces
+    .trim();
+}
+
 export function BookmarkItem({
   bookmark,
   isRefreshing,
@@ -26,12 +61,13 @@ export function BookmarkItem({
   onDelete,
 }: BookmarkItemProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const isTextNote = bookmark.url.startsWith("note://");
   const isLoading = bookmark.id.startsWith("temp-");
   const faviconUrl = isTextNote ? null : getFaviconUrl(bookmark.url);
 
   const displayText = isTextNote
-    ? bookmark.notes ?? bookmark.title ?? "Note"
+    ? stripMarkdown(bookmark.notes ?? bookmark.title ?? "Note")
     : bookmark.title ?? bookmark.url;
 
   const showRefresh = !isTextNote && !bookmark.title && !isLoading;
@@ -59,7 +95,7 @@ export function BookmarkItem({
       <div className="flex min-w-0 flex-1 items-start gap-3 pr-8">
         {icon}
         <div className="min-w-0 flex-1">
-          <p className={`truncate ${isLoading ? "shimmer" : ""}`}>
+          <p className={`truncate leading-5 ${isLoading ? "shimmer" : ""}`}>
             {displayText}
           </p>
           {!isTextNote && bookmark.title && (
@@ -114,33 +150,64 @@ export function BookmarkItem({
     </>
   );
 
+  const noteDialogContent = (
+    <AlertDialogContent
+      className="max-h-[85vh] overflow-y-auto"
+      onOverlayClick={() => setDialogOpen(false)}
+    >
+      <AlertDialogHeader>
+        <AlertDialogTitle className="sr-only">Details</AlertDialogTitle>
+        <AlertDialogDescription asChild>
+          <div className="text-left">
+            <div className="prose prose-neutral prose-sm max-w-none [&_p]:my-4 [&_h1]:mb-2 [&_h2]:mb-2 [&_h3]:mb-2 [&_hb]:mb-2 [&_h5]:mb-2 [&_h6]:mb-2 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-1 [&_blockquote]:my-2">
+              <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                {bookmark.notes ?? ""}
+              </ReactMarkdown>
+            </div>
+            <p className="text-xs text-neutral-400">
+              Saved on {formatDate(bookmark.created_at)}
+            </p>
+          </div>
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+    </AlertDialogContent>
+  );
+
   if (isTextNote) {
     return (
       <li
-        className="hover:bg-neutral-100/50"
+        className="hover:bg-neutral-100/50 rounded-xl"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div className="flex items-center justify-between px-2 py-4 text-neutral-800">
-          {content}
-        </div>
+        <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <AlertDialogTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full cursor-pointer items-center justify-between px-2 py-4 text-left text-neutral-800"
+            >
+              {content}
+            </button>
+          </AlertDialogTrigger>
+          {noteDialogContent}
+        </AlertDialog>
       </li>
     );
   }
 
   return (
     <li
-      className="hover:bg-neutral-100/50"
+      className="hover:bg-neutral-100/50 rounded-xl"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <a
-        className={`flex items-center justify-between px-2 py-4 text-neutral-800 hover:text-neutral-950 ${
-          isLoading ? "text-base" : "text-sm"
-        }`}
         href={bookmark.url}
         target="_blank"
         rel="noreferrer"
+        className={`flex w-full cursor-pointer items-center justify-between px-2 py-4 text-left text-neutral-800 hover:text-neutral-950 ${
+          isLoading ? "text-base" : "text-sm"
+        }`}
       >
         {content}
       </a>
