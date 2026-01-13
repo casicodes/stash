@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -21,8 +22,8 @@ export default function SignUpPage() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`
-        }
+          emailRedirectTo: `${window.location.origin}/`,
+        },
       });
       if (signUpError) {
         setError(signUpError.message);
@@ -35,12 +36,22 @@ export default function SignUpPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
-      <p className="mt-2 text-sm text-zinc-600">Sign up in seconds.</p>
+      <Image
+        alt="Stash logo"
+        className="mb-6 rounded-xl"
+        height={40}
+        priority
+        src="/icon48.png"
+        width={40}
+      />
+      <h1 className="text-2xl font-medium">Create account</h1>
+      <p className="mt-1 text-neutral-500">
+        Welcome! Please fill in the details to get started.
+      </p>
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-3">
+      <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-zinc-400"
           placeholder="Email"
           type="email"
           value={email}
@@ -49,7 +60,7 @@ export default function SignUpPage() {
           required
         />
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-zinc-400"
           placeholder="Password"
           type="password"
           value={password}
@@ -62,7 +73,7 @@ export default function SignUpPage() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <button
-          className="w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 py-3 text-white disabled:opacity-50"
           type="submit"
           disabled={isPending}
         >
@@ -70,12 +81,14 @@ export default function SignUpPage() {
         </button>
       </form>
 
-      <div className="mt-6 flex items-center justify-between text-sm">
-        <Link className="text-zinc-600 hover:text-zinc-900" href="/auth/sign-in">
-          Sign in
+      <div className="mt-6 flex items-center justify-center text-sm text-center">
+        <Link
+          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2"
+          href="/auth/sign-in"
+        >
+          Already have an account? Sign in
         </Link>
       </div>
     </main>
   );
 }
-

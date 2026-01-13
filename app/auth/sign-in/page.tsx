@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState, useTransition } from "react";
@@ -22,7 +23,7 @@ function SignInForm() {
     startTransition(async () => {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
       });
       if (signInError) {
         setError(signInError.message);
@@ -35,12 +36,22 @@ function SignInForm() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-      <p className="mt-2 text-sm text-zinc-600">Save and search your bookmarks.</p>
+      <Image
+        alt="Stash logo"
+        className="mb-6 rounded-xl"
+        height={40}
+        priority
+        src="/icon48.png"
+        width={40}
+      />
+      <h1 className="text-2xl font-medium">Sign in</h1>
+      <p className="mt-1 text-neutral-500">
+        Welcome back! Please sign in to continue
+      </p>
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-3">
+      <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-zinc-400"
           placeholder="Email"
           type="email"
           value={email}
@@ -49,7 +60,7 @@ function SignInForm() {
           required
         />
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-zinc-400"
           placeholder="Password"
           type="password"
           value={password}
@@ -61,7 +72,7 @@ function SignInForm() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <button
-          className="w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 py-3 text-white disabled:opacity-50"
           type="submit"
           disabled={isPending}
         >
@@ -70,10 +81,16 @@ function SignInForm() {
       </form>
 
       <div className="mt-6 flex items-center justify-between text-sm">
-        <Link className="text-zinc-600 hover:text-zinc-900" href="/auth/forgot-password">
+        <Link
+          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2"
+          href="/auth/forgot-password"
+        >
           Forgot password
         </Link>
-        <Link className="text-zinc-600 hover:text-zinc-900" href="/auth/sign-up">
+        <Link
+          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2"
+          href="/auth/sign-up"
+        >
           Create account
         </Link>
       </div>
@@ -88,4 +105,3 @@ export default function SignInPage() {
     </Suspense>
   );
 }
-

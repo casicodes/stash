@@ -16,7 +16,9 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const { error: updateError } = await supabase.auth.updateUser({ password });
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+      });
       if (updateError) {
         setError(updateError.message);
         return;
@@ -28,12 +30,14 @@ export default function ResetPasswordPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Choose a new password</h1>
-      <p className="mt-2 text-sm text-zinc-600">Make it long. You won’t have to type it often.</p>
+      <h1 className="text-2xl font-medium">Choose a new password</h1>
+      <p className="mt-1 text-neutral-500">
+        Make it long. You won’t have to type it often.
+      </p>
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-3">
+      <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-zinc-400"
           placeholder="New password"
           type="password"
           value={password}
@@ -46,7 +50,7 @@ export default function ResetPasswordPage() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <button
-          className="w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 py-3 text-white disabled:opacity-50"
           type="submit"
           disabled={isPending}
         >
@@ -55,11 +59,13 @@ export default function ResetPasswordPage() {
       </form>
 
       <div className="mt-6 flex items-center justify-between text-sm">
-        <Link className="text-zinc-600 hover:text-zinc-900" href="/auth/sign-in">
+        <Link
+          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2"
+          href="/auth/sign-in"
+        >
           Back to sign in
         </Link>
       </div>
     </main>
   );
 }
-

@@ -107,8 +107,8 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white pb-4">
         <div className="flex items-center justify-between py-8">
-          <div className="flex items-center gap-3">
-            <div className="h-3 w-3 rounded-full bg-ink" />
+          <div className="flex items-center gap-2">
+            <img src="/icon48.png" alt="Stash" className="h-6 w-6" />
             <div className="font-medium text-neutral-700">
               Stash - All your bookmarks in one place
             </div>

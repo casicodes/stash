@@ -34,11 +34,13 @@ export async function middleware(req: NextRequest) {
 
   const pathname = req.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/auth");
+  const isPublicFile = /\.[a-zA-Z0-9]+$/.test(pathname);
   const isPublicAsset =
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/robots") ||
-    pathname.startsWith("/sitemap");
+    pathname.startsWith("/sitemap") ||
+    isPublicFile;
 
   if (!user && !isAuthRoute && !isPublicAsset) {
     const redirectUrl = req.nextUrl.clone();

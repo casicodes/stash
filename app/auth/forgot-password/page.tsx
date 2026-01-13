@@ -16,9 +16,12 @@ export default function ForgotPasswordPage() {
     setError(null);
     startTransition(async () => {
       const redirectTo = `${window.location.origin}/auth/reset-password`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo
-      });
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo,
+        }
+      );
       if (resetError) {
         setError(resetError.message);
         return;
@@ -29,14 +32,16 @@ export default function ForgotPasswordPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Reset password</h1>
-      <p className="mt-2 text-sm text-zinc-600">
-        {status === "sent" ? "Check your inbox for a reset link." : "We’ll email you a reset link."}
+      <h1 className="text-2xl font-medium">Reset password</h1>
+      <p className="mt-1 text-neutral-500">
+        {status === "sent"
+          ? "Check your inbox for a reset link."
+          : "We’ll email you a reset link."}
       </p>
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-3">
+      <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-zinc-400"
           placeholder="Email"
           type="email"
           value={email}
@@ -48,7 +53,7 @@ export default function ForgotPasswordPage() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <button
-          className="w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="w-full rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 py-3 text-white disabled:opacity-50"
           type="submit"
           disabled={isPending || status === "sent"}
         >
@@ -56,12 +61,14 @@ export default function ForgotPasswordPage() {
         </button>
       </form>
 
-      <div className="mt-6 flex items-center justify-between text-sm">
-        <Link className="text-zinc-600 hover:text-zinc-900" href="/auth/sign-in">
+      <div className="mt-6 flex items-center justify-center text-sm text-center">
+        <Link
+          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2"
+          href="/auth/sign-in"
+        >
           Back to sign in
         </Link>
       </div>
     </main>
   );
 }
-
