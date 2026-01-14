@@ -1,5 +1,6 @@
 // Content script to show save popup overlay
-console.log("Shelf: Content script loaded");
+// This is only injected by background.js when saving, not run automatically
+console.log("Shelf: Content script loaded (overlay mode)");
 
 (function () {
   const SHELF_URL = "http://localhost:3000";
@@ -107,7 +108,7 @@ console.log("Shelf: Content script loaded");
 
     #shelf-save-overlay .shelf-link {
       font-size: 14px !important;
-      color: #a3a3a3 !important;
+      color: #737373 !important;
       text-decoration: underline !important;
       margin-left: 4px;
     }

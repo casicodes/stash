@@ -41,7 +41,7 @@ export default function ForgotPasswordPage() {
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
-          className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 outline-none focus:border-zinc-400"
           placeholder="Email"
           type="email"
           value={email}
@@ -53,17 +53,21 @@ export default function ForgotPasswordPage() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <button
-          className="w-full rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 py-3 text-white disabled:opacity-50"
+          className="w-full h-12 rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 text-white disabled:opacity-50 active:scale-[0.97] flex items-center justify-center"
           type="submit"
           disabled={isPending || status === "sent"}
         >
-          Send reset link
+          {isPending ? (
+            <span className="h-5 w-5 border-2 border-[#e0e0e0] border-t-[#888] rounded-full animate-spin" />
+          ) : (
+            "Send reset link"
+          )}
         </button>
       </form>
 
       <div className="mt-6 flex items-center justify-center text-sm text-center">
         <Link
-          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2"
+          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2 transition active:scale-[0.97]"
           href="/auth/sign-in"
         >
           Back to sign in

@@ -4,7 +4,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Shelf",
-  description: "Search-first bookmarks"
+  description: "Search-first bookmarks",
+  icons: {
+    icon: "/icon48.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,36 +1,58 @@
 import type { Bookmark } from "@/types/bookmark";
 
 export async function fetchBookmarks(): Promise<Bookmark[]> {
-  const res = await fetch("/api/bookmarks", { method: "GET" });
-  if (!res.ok) return [];
-  const json = await res.json();
-  return json.bookmarks ?? [];
+  try {
+    const res = await fetch("/api/bookmarks", { method: "GET" });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.bookmarks ?? [];
+  } catch (error) {
+    return [];
+  }
 }
 
 export async function createBookmark(url: string): Promise<{ bookmark?: Bookmark; error?: string }> {
-  const res = await fetch("/api/bookmarks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
-  });
-  const json = await res.json().catch(() => ({}));
-  
-  if (!res.ok) {
-    return { error: json?.error ?? "Failed to save" };
+  try {
+    const res = await fetch("/api/bookmarks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    
+    const json = await res.json().catch(() => ({}));
+    
+    if (!res.ok) {
+      const errorMsg = json?.error ?? "Failed to save";
+      console.error("Shelf: Create bookmark error", { status: res.status, error: errorMsg, json });
+      return { error: errorMsg };
+    }
+    
+    if (!json.bookmark) {
+      console.error("Shelf: No bookmark in response", json);
+      return { error: "Invalid response from server" };
+    }
+    
+    return { bookmark: json.bookmark };
+  } catch (error) {
+    console.error("Shelf: Create bookmark network error", error);
+    return { error: error instanceof Error ? error.message : "Network error" };
   }
-  return { bookmark: json.bookmark };
 }
 
 export async function refreshBookmarkMetadata(id: string): Promise<{ bookmark?: Bookmark; error?: string }> {
-  const res = await fetch(`/api/bookmarks/${id}/refresh`, {
-    method: "POST",
-  });
-  const json = await res.json().catch(() => ({}));
-  
-  if (!res.ok) {
-    return { error: json?.error ?? "Failed to refresh" };
+  try {
+    const res = await fetch(`/api/bookmarks/${id}/refresh`, {
+      method: "POST",
+    });
+    const json = await res.json().catch(() => ({}));
+    
+    if (!res.ok) {
+      return { error: json?.error ?? "Failed to refresh" };
+    }
+    return { bookmark: json.bookmark };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Network error" };
   }
-  return { bookmark: json.bookmark };
 }
 
 export async function searchBookmarks(
@@ -46,15 +68,19 @@ export async function searchBookmarks(
 }
 
 export async function deleteBookmark(id: string): Promise<{ success: boolean; error?: string }> {
-  const res = await fetch(`/api/bookmarks/${id}`, {
-    method: "DELETE",
-  });
-  const json = await res.json().catch(() => ({}));
+  try {
+    const res = await fetch(`/api/bookmarks/${id}`, {
+      method: "DELETE",
+    });
+    const json = await res.json().catch(() => ({}));
 
-  if (!res.ok) {
-    return { success: false, error: json?.error ?? "Failed to delete" };
+    if (!res.ok) {
+      return { success: false, error: json?.error ?? "Failed to delete" };
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Network error" };
   }
-  return { success: true };
 }
 
 export async function logout(): Promise<void> {

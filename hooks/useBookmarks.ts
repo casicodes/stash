@@ -4,15 +4,27 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { Bookmark } from "@/types/bookmark";
 import { fetchBookmarks, createBookmark, refreshBookmarkMetadata, deleteBookmark as deleteBookmarkApi } from "@/lib/api/bookmarks";
 
+// Helper to deduplicate bookmarks by ID, keeping the first occurrence
+function deduplicateBookmarks(bookmarks: Bookmark[]): Bookmark[] {
+  const seen = new Set<string>();
+  return bookmarks.filter((bookmark) => {
+    if (seen.has(bookmark.id)) {
+      return false;
+    }
+    seen.add(bookmark.id);
+    return true;
+  });
+}
+
 export function useBookmarks(initial: Bookmark[]) {
-  const [items, setItems] = useState<Bookmark[]>(initial);
+  const [items, setItems] = useState<Bookmark[]>(deduplicateBookmarks(initial));
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const pendingDeletes = useRef<Map<string, { bookmark: Bookmark; index: number }>>(new Map());
 
   // Refresh bookmarks on mount
   useEffect(() => {
     fetchBookmarks()
-      .then(setItems)
+      .then((bookmarks) => setItems(deduplicateBookmarks(bookmarks)))
       .catch(() => {});
   }, []);
 
@@ -30,19 +42,25 @@ export function useBookmarks(initial: Bookmark[]) {
     };
 
     // Optimistic update
-    setItems((prev) => [optimistic, ...prev]);
+    setItems((prev) => deduplicateBookmarks([optimistic, ...prev]));
 
     const { bookmark, error } = await createBookmark(url);
 
     if (error) {
-      setItems((prev) => prev.filter((b) => b.id !== tempId));
+      setItems((prev) => deduplicateBookmarks(prev.filter((b) => b.id !== tempId)));
       return { error };
     }
 
     if (bookmark) {
       setItems((prev) =>
-        prev.map((b) => (b.id === tempId ? { ...optimistic, ...bookmark } : b))
+        deduplicateBookmarks(prev.map((b) => (b.id === tempId ? bookmark : b)))
       );
+    } else {
+      // If no bookmark returned but no error, remove optimistic update and refetch
+      setItems((prev) => deduplicateBookmarks(prev.filter((b) => b.id !== tempId)));
+      fetchBookmarks()
+        .then((bookmarks) => setItems(deduplicateBookmarks(bookmarks)))
+        .catch(() => {});
     }
 
     return { bookmark };
@@ -55,7 +73,7 @@ export function useBookmarks(initial: Bookmark[]) {
     
     if (bookmark) {
       setItems((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b))
+        deduplicateBookmarks(prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b)))
       );
     }
     
@@ -74,7 +92,7 @@ export function useBookmarks(initial: Bookmark[]) {
         deletedBookmark = prev[index];
         deletedIndex = index;
       }
-      return prev.filter((b) => b.id !== id);
+      return deduplicateBookmarks(prev.filter((b) => b.id !== id));
     });
 
     if (deletedBookmark) {
@@ -96,7 +114,7 @@ export function useBookmarks(initial: Bookmark[]) {
       // Insert at original position or start if index is out of bounds
       const insertIndex = Math.min(pending.index, newItems.length);
       newItems.splice(insertIndex, 0, pending.bookmark);
-      return newItems;
+      return deduplicateBookmarks(newItems);
     });
   }, []);
 
@@ -109,7 +127,7 @@ export function useBookmarks(initial: Bookmark[]) {
     if (!success) {
       // Refetch on failure
       const bookmarks = await fetchBookmarks();
-      setItems(bookmarks);
+      setItems(deduplicateBookmarks(bookmarks));
       return { error };
     }
 

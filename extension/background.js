@@ -325,11 +325,25 @@ async function saveBookmark(url, notes, tabId) {
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
+    let data = {};
+    const responseText = await response.text().catch(() => "");
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch (parseError) {
+      console.error("Shelf: Failed to parse response", parseError);
+      console.error("Shelf: Response status", response.status);
+      console.error("Shelf: Response text", responseText);
+    }
+
     let status = "saved";
 
     if (!response.ok) {
-      if (
+      console.error("Shelf: API error", response.status, data);
+      if (response.status === 401) {
+        // Token expired or invalid
+        await chrome.storage.local.remove(["shelf_token"]);
+        status = "auth";
+      } else if (
         data.error?.toLowerCase().includes("duplicate") ||
         data.error?.toLowerCase().includes("already exists") ||
         data.error?.toLowerCase().includes("unique")
@@ -344,6 +358,11 @@ async function saveBookmark(url, notes, tabId) {
     chrome.tabs.sendMessage(tabId, { type: "SHELF_SAVE_RESULT", status });
   } catch (error) {
     console.error("Shelf: Save error", error);
+    console.error("Shelf: Error details", {
+      message: error.message,
+      stack: error.stack,
+      url: API_URL,
+    });
     chrome.tabs.sendMessage(tabId, {
       type: "SHELF_SAVE_RESULT",
       status: "error",
@@ -402,7 +421,7 @@ async function injectOverlay(tabId) {
 // Auth Token Capture
 // =============================================================================
 
-// Listen for messages from content script
+// Listen for messages from content script and web pages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "SHELF_AUTH_TOKEN" && message.token) {
     // Store the token
@@ -415,6 +434,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     });
     sendResponse({ success: true });
+  } else if (message.type === "SHELF_CHECK_INSTALLED") {
+    // Respond to extension detection check from web page
+    sendResponse({ installed: true });
+    return true;
   }
   return true;
 });
