@@ -7,7 +7,7 @@ const DEV_URL = "http://localhost:3000";
 
 // For production (update with your Vercel domain)
 // Example: const PROD_URL = "https://shelf-app.vercel.app";
-const PROD_URL = "https://your-app.vercel.app";
+const PROD_URL = "https://createshelf.vercel.app";
 
 // Set to 'dev' for local development, 'prod' for production builds
-const ENV = "dev";
+const ENV = "prod";

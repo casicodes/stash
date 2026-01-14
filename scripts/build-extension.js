@@ -5,8 +5,12 @@
  * Replaces localhost URLs with production URL in extension files
  */
 
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const EXTENSION_DIR = path.join(__dirname, "..", "extension");
 const CONFIG_FILE = path.join(EXTENSION_DIR, "config.js");
@@ -17,8 +21,9 @@ let ENV = "dev";
 
 if (fs.existsSync(CONFIG_FILE)) {
   const configContent = fs.readFileSync(CONFIG_FILE, "utf8");
-  const prodUrlMatch = configContent.match(/const PROD_URL = ["']([^"']+)["']/);
-  const envMatch = configContent.match(/const ENV = ["']([^"']+)["']/);
+  // Match PROD_URL only on non-comment lines (not starting with //)
+  const prodUrlMatch = configContent.match(/^[^/]*const PROD_URL = ["']([^"']+)["']/m);
+  const envMatch = configContent.match(/^[^/]*const ENV = ["']([^"']+)["']/m);
   
   if (prodUrlMatch) PROD_URL = prodUrlMatch[1];
   if (envMatch) ENV = envMatch[1];
@@ -59,6 +64,15 @@ filesToUpdate.forEach((filename) => {
   // Replace localhost URLs with production URL
   if (content.includes(DEV_URL)) {
     content = content.replace(new RegExp(DEV_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), SHELF_URL);
+    updated = true;
+  }
+
+  // Also replace any existing production URLs (from previous builds)
+  // Match common Vercel URL patterns - but only if they're different from target URL
+  const vercelUrlPattern = /https:\/\/[a-zA-Z0-9-]+\.vercel\.app/g;
+  const matches = content.match(vercelUrlPattern);
+  if (matches && matches.some(url => url !== SHELF_URL)) {
+    content = content.replace(vercelUrlPattern, SHELF_URL);
     updated = true;
   }
 

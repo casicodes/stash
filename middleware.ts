@@ -34,6 +34,7 @@ export async function middleware(req: NextRequest) {
 
   const pathname = req.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/auth");
+  const isPublicRoute = pathname === "/privacy";
   const isPublicFile = /\.[a-zA-Z0-9]+$/.test(pathname);
   const isPublicAsset =
     pathname.startsWith("/_next") ||
@@ -42,7 +43,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/sitemap") ||
     isPublicFile;
 
-  if (!user && !isAuthRoute && !isPublicAsset) {
+  if (!user && !isAuthRoute && !isPublicRoute && !isPublicAsset) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/auth/sign-in";
     redirectUrl.searchParams.set("redirectedFrom", pathname);

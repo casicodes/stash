@@ -18,6 +18,13 @@ export default function ExtensionCallbackPage() {
 
   useEffect(() => {
     // Create client only after mount to avoid SSR/window issues
+
+    console.log("SUPABASE_URL =", process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log(
+      "SUPABASE_KEY starts with =",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 18)
+    );
+
     supabaseRef.current = createClient();
 
     async function checkAuth() {
