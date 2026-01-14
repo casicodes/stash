@@ -1,13 +1,15 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ExtensionCallbackPage() {
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const [supabase, setSupabase] = useState<ReturnType<
+    typeof createClient
+  > | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,11 +24,16 @@ export default function ExtensionCallbackPage() {
 
   // Check if user is already authenticated
   useEffect(() => {
-    if (!supabase) return;
-    
+    if (!supabase) {
+      setIsCheckingAuth(false);
+      return;
+    }
+
     const client = supabase;
     async function checkAuth() {
-      const { data: { session } } = await client.auth.getSession();
+      const {
+        data: { session },
+      } = await client.auth.getSession();
       if (session?.access_token) {
         sendTokenToExtension(session.access_token);
         setIsConnected(true);
@@ -45,14 +52,16 @@ export default function ExtensionCallbackPage() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) return;
-    
+
     const client = supabase;
     setError(null);
     startTransition(async () => {
-      const { data, error: signInError } = await client.auth.signInWithPassword({
-        email,
-        password
-      });
+      const { data, error: signInError } = await client.auth.signInWithPassword(
+        {
+          email,
+          password,
+        }
+      );
       if (signInError) {
         setError(signInError.message);
         return;
@@ -83,10 +92,16 @@ export default function ExtensionCallbackPage() {
             strokeWidth={2}
             viewBox="0 0 24 24"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 13l4 4L19 7"
+            />
           </svg>
         </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">Connected to Shelf</h1>
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight">
+          Connected to Shelf
+        </h1>
         <p className="mt-2 text-sm text-zinc-600">
           You can close this tab and return to the extension.
         </p>
@@ -102,7 +117,9 @@ export default function ExtensionCallbackPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Connect extension</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        Connect extension
+      </h1>
       <p className="mt-2 text-sm text-zinc-600">
         Sign in to connect the Shelf browser extension to your account.
       </p>
