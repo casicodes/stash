@@ -194,7 +194,19 @@ export async function POST(req: Request) {
     .single();
 
   if (insertRes.error) {
-    // likely duplicate
+    // Check if it's a duplicate key violation
+    const isDuplicate = 
+      insertRes.error.code === "23505" ||
+      insertRes.error.message?.toLowerCase().includes("duplicate") ||
+      insertRes.error.message?.toLowerCase().includes("unique constraint");
+    
+    if (isDuplicate) {
+      return NextResponse.json(
+        { error: "DUPLICATE_BOOKMARK" },
+        { status: 400, headers: corsHeaders() }
+      );
+    }
+    
     return NextResponse.json(
       { error: insertRes.error.message },
       { status: 400, headers: corsHeaders() }

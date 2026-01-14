@@ -136,7 +136,25 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     const { error } = await addBookmark(url);
 
     if (error) {
-      toast.error(error);
+      if (error === "DUPLICATE_BOOKMARK") {
+        toast.success("Already saved", {
+          icon: (
+            <svg className="h-5 w-5" fill="#008236" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" fill="#008236" />
+              <path
+                d="M9 12l2 2 4-4"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+            </svg>
+          ),
+        });
+      } else {
+        toast.error(error);
+      }
     }
   };
 

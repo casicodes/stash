@@ -66,11 +66,20 @@ export function BookmarkItem({
           isTextNote ? "justify-center" : ""
         }`}
       >
-        <p className={`truncate leading-5 ${isLoading ? "shimmer" : ""}`}>
-          {displayText}
-        </p>
-        {!isTextNote && bookmark.title && (
-          <p className="truncate text-neutral-400 text-sm">{bookmark.url}</p>
+        {isLoading && !isTextNote ? (
+          <>
+            <div className="h-[20px] w-48 skeleton-box" />
+            <p className="truncate text-neutral-400 text-sm">{bookmark.url}</p>
+          </>
+        ) : (
+          <>
+            <p className="truncate leading-5">{displayText}</p>
+            {!isTextNote && bookmark.title && (
+              <p className="truncate text-neutral-400 text-sm">
+                {bookmark.url}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>
