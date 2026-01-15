@@ -111,9 +111,26 @@ export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
                 </svg>
               </button>
             ) : (
-              <span className="text-sm flex h-5 px-2 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium text-neutral-500">
-                Esc
-              </span>
+              <>
+                <span className="text-sm flex size-5 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium text-neutral-500">
+                  <svg
+                    className="h-3 w-3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 19V5M5 12l7-7 7 7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <span className="text-sm flex size-5 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium text-neutral-500">
+                  T
+                </span>
+              </>
             )}
           </div>
         </div>

@@ -41,6 +41,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     deleteBookmark,
     undoDelete,
     confirmDelete,
+    renameBookmark,
   } = useBookmarks(initial);
 
   // Preload audio files
@@ -236,7 +237,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
               </a>
             )}
             <button
-              className="text-neutral-500 hover:text-neutral-900 underline underline-offset-2 transition active:scale-[0.97] disabled:opacity-50"
+              className="w-[55px] text-neutral-500 hover:text-neutral-900 underline underline-offset-2 transition active:scale-[0.97] disabled:opacity-50"
               type="button"
               onClick={handleSignOut}
               disabled={isLoggingOut}
@@ -269,7 +270,11 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
 
       {/* Bookmark list */}
       <div className="scrollbar-light flex-1 overflow-y-auto pb-8">
-        <BookmarkList bookmarks={displayed} onDelete={handleDelete} />
+        <BookmarkList
+          bookmarks={displayed}
+          onDelete={handleDelete}
+          onRename={renameBookmark}
+        />
       </div>
     </div>
   );

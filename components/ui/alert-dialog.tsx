@@ -37,9 +37,13 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogOverlay onClick={onOverlayClick} />
     <AlertDialogPrimitive.Content
       ref={ref}
-      className={`fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-neutral-200 bg-white p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-xl ${
+      className={`fixed left-[50%] top-[50%] z-50 grid w-full max-w-3xl translate-x-[-50%] translate-y-[-50%] gap-4 bg-white p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] rounded-xl ${
         className ?? ""
       }`}
+      style={{
+        boxShadow:
+          "lch(0 0 0 / 0.088) 0px 9px 48px, lch(0 0 0 / 0.11) 0px 6px 24px, lch(0 0 0 / 0.044) 0px 1px 1px",
+      }}
       {...props}
     />
   </AlertDialogPortal>
@@ -78,7 +82,7 @@ const AlertDialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
-    className={`text-lg font-semibold text-neutral-900 ${className ?? ""}`}
+    className={`text-lg font-medium text-neutral-800 ${className ?? ""}`}
     {...props}
   />
 ));

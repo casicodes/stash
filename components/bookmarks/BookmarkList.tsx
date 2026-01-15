@@ -7,11 +7,13 @@ import { useExtensionInstalled } from "@/hooks/useExtensionInstalled";
 type BookmarkListProps = {
   bookmarks: Bookmark[];
   onDelete: (id: string) => void;
+  onRename: (id: string, title: string) => Promise<{ bookmark?: Bookmark; error?: string }>;
 };
 
 export function BookmarkList({
   bookmarks,
   onDelete,
+  onRename,
 }: BookmarkListProps) {
   const { isInstalled } = useExtensionInstalled();
 
@@ -68,6 +70,7 @@ export function BookmarkList({
           key={bookmark.id}
           bookmark={bookmark}
           onDelete={onDelete}
+          onRename={onRename}
         />
       ))}
     </ul>

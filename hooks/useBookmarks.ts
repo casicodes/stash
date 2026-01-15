@@ -7,6 +7,7 @@ import {
   createBookmark,
   refreshBookmarkMetadata,
   deleteBookmark as deleteBookmarkApi,
+  renameBookmark as renameBookmarkApi,
 } from "@/lib/api/bookmarks";
 
 // Helper to deduplicate bookmarks by ID, keeping the first occurrence
@@ -278,6 +279,20 @@ export function useBookmarks(initial: Bookmark[]) {
     return { success: true };
   }, []);
 
+  const renameBookmark = useCallback(async (id: string, title: string) => {
+    const { bookmark, error } = await renameBookmarkApi(id, title);
+
+    if (bookmark) {
+      setItems((prev) =>
+        deduplicateBookmarks(
+          prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b))
+        )
+      );
+    }
+
+    return { bookmark, error };
+  }, []);
+
   return {
     items,
     refreshingId,
@@ -286,5 +301,6 @@ export function useBookmarks(initial: Bookmark[]) {
     deleteBookmark,
     undoDelete,
     confirmDelete,
+    renameBookmark,
   };
 }

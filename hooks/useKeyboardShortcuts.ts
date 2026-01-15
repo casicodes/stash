@@ -33,7 +33,11 @@ export function useKeyboardShortcuts({
         inputRef.current?.focus();
       }
 
-      if (e.key === "Escape") {
+      // Use Shift+T to switch from search mode to add mode
+      // (ESC is reserved for closing dialogs)
+      const isShiftT = e.shiftKey && e.key.toLowerCase() === "t";
+      if (isShiftT) {
+        e.preventDefault();
         onEscape();
         inputRef.current?.blur();
       }

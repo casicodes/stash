@@ -83,6 +83,27 @@ export async function deleteBookmark(id: string): Promise<{ success: boolean; er
   }
 }
 
+export async function renameBookmark(
+  id: string,
+  title: string
+): Promise<{ bookmark?: Bookmark; error?: string }> {
+  try {
+    const res = await fetch(`/api/bookmarks/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      return { error: json?.error ?? "Failed to rename" };
+    }
+    return { bookmark: json.bookmark };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Network error" };
+  }
+}
+
 export async function logout(): Promise<void> {
   await fetch("/api/logout", { method: "POST" });
 }
