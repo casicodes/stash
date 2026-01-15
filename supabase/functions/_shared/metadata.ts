@@ -33,7 +33,26 @@ function extractMeta(html: string, key: string) {
   return nameReverse;
 }
 
-export function extractMetadata(html: string) {
+function resolveImageUrl(imageUrl: string | null, baseUrl: string): string | null {
+  if (!imageUrl) return null;
+  
+  try {
+    // If already absolute, return as is
+    new URL(imageUrl);
+    return imageUrl;
+  } catch {
+    // Relative URL - resolve against base URL
+    try {
+      const base = new URL(baseUrl);
+      const resolved = new URL(imageUrl, base);
+      return resolved.toString();
+    } catch {
+      return null;
+    }
+  }
+}
+
+export function extractMetadata(html: string, baseUrl: string) {
   const title =
     extractMeta(html, "og:title") ??
     extractMeta(html, "twitter:title") ??
@@ -45,7 +64,8 @@ export function extractMetadata(html: string) {
     extractMeta(html, "description") ?? 
     null;
   const siteName = extractMeta(html, "og:site_name") ?? null;
-  const imageUrl = extractMeta(html, "og:image") ?? extractMeta(html, "twitter:image") ?? null;
+  const rawImageUrl = extractMeta(html, "og:image") ?? extractMeta(html, "twitter:image") ?? null;
+  const imageUrl = resolveImageUrl(rawImageUrl, baseUrl);
   return { title, description, siteName, imageUrl };
 }
 

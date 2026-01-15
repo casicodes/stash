@@ -4,11 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { normalizeUrl } from "@/lib/url/normalize";
 import { detectBookmarkType } from "@/lib/url/detect-type";
 import { fetchMetadata } from "@/lib/metadata/fetch";
+import { uploadScreenshot } from "@/lib/storage/upload";
 
 const CreateBookmarkSchema = z.object({
   url: z.string().min(1),
+  client_title: z.string().min(1).optional(),
   notes: z.string().optional(),
-  tags: z.array(z.string().min(1)).optional()
+  tags: z.array(z.string().min(1)).optional(),
+  image_url: z.string().optional(),
 });
 
 // CORS headers for browser extension
@@ -68,7 +71,8 @@ export async function GET(req: Request) {
   if (filterTag) {
     const { data, error } = await supabase
       .from("bookmark_tags")
-      .select(`
+      .select(
+        `
         tag,
         bookmarks:bookmark_id (
           id,
@@ -81,7 +85,8 @@ export async function GET(req: Request) {
           created_at,
           archived
         )
-      `)
+      `
+      )
       .eq("tag", filterTag)
       .eq("user_id", user.id);
 
@@ -96,7 +101,10 @@ export async function GET(req: Request) {
     const bookmarks = (data ?? [])
       .map((row: any) => ({ ...row.bookmarks, tags: [row.tag] }))
       .filter((b: any) => b && !b.archived)
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
     return NextResponse.json({ bookmarks }, { headers: corsHeaders() });
   }
@@ -104,7 +112,8 @@ export async function GET(req: Request) {
   // Default: fetch all bookmarks with their tags
   const { data, error } = await supabase
     .from("bookmarks")
-    .select(`
+    .select(
+      `
       id,
       url,
       title,
@@ -114,7 +123,8 @@ export async function GET(req: Request) {
       notes,
       created_at,
       bookmark_tags (tag)
-    `)
+    `
+    )
     .eq("archived", false)
     .order("created_at", { ascending: false })
     .limit(200);
@@ -156,6 +166,7 @@ export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = CreateBookmarkSchema.safeParse(json);
   if (!parsed.success) {
+    console.error("Shelf: Schema validation failed", parsed.error);
     return NextResponse.json(
       { error: "Invalid payload" },
       { status: 400, headers: corsHeaders() }
@@ -163,13 +174,15 @@ export async function POST(req: Request) {
   }
 
   const input = parsed.data.url.trim();
+  const explicitTags = parsed.data.tags ?? [];
   const normalized = normalizeUrl(input);
   const isTextNote = !normalized;
+  const clientTitle = parsed.data.client_title?.trim() || null;
 
   // For plain text, generate a unique note:// URL and store content in notes
   const noteId = crypto.randomUUID();
   const urlToStore = isTextNote ? `note://${noteId}` : normalized;
-  const notesToStore = isTextNote ? input : (parsed.data.notes ?? null);
+  const notesToStore = isTextNote ? input : parsed.data.notes ?? null;
   const titleToStore = isTextNote ? input.slice(0, 100) : null;
 
   // For URLs, fetch metadata first
@@ -178,35 +191,80 @@ export async function POST(req: Request) {
     metadata = await fetchMetadata(normalized);
   }
 
+  const shouldPreferClientTitleForLinkedIn = (() => {
+    if (!clientTitle || !normalized) return false;
+    try {
+      const { hostname } = new URL(normalized);
+      return hostname === "linkedin.com" || hostname.endsWith(".linkedin.com");
+    } catch {
+      return false;
+    }
+  })();
+
+  const resolvedTitle =
+    isTextNote
+      ? titleToStore
+      : shouldPreferClientTitleForLinkedIn
+        ? clientTitle
+        : metadata?.title ?? null;
+
+  // Handle image_url: if it's a base64 data URL, upload to storage first
+  let imageUrlToStore = isTextNote
+    ? parsed.data.image_url ?? null
+    : parsed.data.image_url ?? metadata?.imageUrl ?? null;
+
+  if (imageUrlToStore && imageUrlToStore.startsWith("data:image/")) {
+    const uploadedUrl = await uploadScreenshot(imageUrlToStore, user.id);
+    if (uploadedUrl) {
+      imageUrlToStore = uploadedUrl;
+    } else {
+      console.error("Shelf: Failed to upload screenshot, storing null");
+      imageUrlToStore = null;
+    }
+  }
+
+  // For LinkedIn URLs, use LinkedIn favicon as fallback if no image found
+  if (!imageUrlToStore && !isTextNote && normalized) {
+    try {
+      const { hostname } = new URL(normalized);
+      if (hostname === "linkedin.com" || hostname.endsWith(".linkedin.com")) {
+        imageUrlToStore = "https://static.licdn.com/aero-v1/sc/h/al2o9zrvru7aqj8e1x2rzsrca";
+      }
+    } catch {
+      // Invalid URL, skip favicon fallback
+    }
+  }
+
   const insertRes = await supabase
     .from("bookmarks")
     .insert({
       user_id: user.id,
       url: urlToStore,
       normalized_url: urlToStore,
-      title: isTextNote ? titleToStore : (metadata?.title ?? null),
+      title: resolvedTitle,
       description: metadata?.description ?? null,
       site_name: metadata?.siteName ?? null,
-      image_url: metadata?.imageUrl ?? null,
-      notes: notesToStore
+      image_url: imageUrlToStore,
+      notes: notesToStore,
     })
     .select("id,url,title,description,site_name,image_url,notes,created_at")
     .single();
 
   if (insertRes.error) {
+    console.error("Shelf: Database insert error", insertRes.error);
     // Check if it's a duplicate key violation
-    const isDuplicate = 
+    const isDuplicate =
       insertRes.error.code === "23505" ||
       insertRes.error.message?.toLowerCase().includes("duplicate") ||
       insertRes.error.message?.toLowerCase().includes("unique constraint");
-    
+
     if (isDuplicate) {
       return NextResponse.json(
         { error: "DUPLICATE_BOOKMARK" },
         { status: 400, headers: corsHeaders() }
       );
     }
-    
+
     return NextResponse.json(
       { error: insertRes.error.message },
       { status: 400, headers: corsHeaders() }
@@ -215,16 +273,23 @@ export async function POST(req: Request) {
 
   // Auto-tag based on URL type (ignore errors)
   const bookmarkType = detectBookmarkType(urlToStore, isTextNote);
+  // If caller supplied tags (e.g. extension), prefer those but always dedupe
+  const tagsToInsert = (
+    explicitTags.length > 0 ? explicitTags : [bookmarkType]
+  ).filter((tag, index, self) => self.indexOf(tag) === index);
+
   let tags: string[] = [];
   try {
-    await supabase
-      .from("bookmark_tags")
-      .insert({
-        bookmark_id: insertRes.data.id,
-        user_id: user.id,
-        tag: bookmarkType,
-      });
-    tags = [bookmarkType];
+    if (tagsToInsert.length > 0) {
+      await supabase.from("bookmark_tags").insert(
+        tagsToInsert.map((tag) => ({
+          bookmark_id: insertRes.data.id,
+          user_id: user.id,
+          tag,
+        }))
+      );
+      tags = tagsToInsert;
+    }
   } catch {
     // Ignore tag insert errors
   }
@@ -240,12 +305,12 @@ export async function POST(req: Request) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${serviceRoleKey}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         bookmarkId: insertRes.data.id,
-        userId: user.id
-      })
+        userId: user.id,
+      }),
     }).catch(() => {});
   }
 
@@ -254,4 +319,3 @@ export async function POST(req: Request) {
     { headers: corsHeaders() }
   );
 }
-

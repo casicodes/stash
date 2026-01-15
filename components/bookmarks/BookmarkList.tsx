@@ -6,15 +6,11 @@ import { useExtensionInstalled } from "@/hooks/useExtensionInstalled";
 
 type BookmarkListProps = {
   bookmarks: Bookmark[];
-  refreshingId: string | null;
-  onRefresh: (id: string) => void;
   onDelete: (id: string) => void;
 };
 
 export function BookmarkList({
   bookmarks,
-  refreshingId,
-  onRefresh,
   onDelete,
 }: BookmarkListProps) {
   const { isInstalled } = useExtensionInstalled();
@@ -71,8 +67,6 @@ export function BookmarkList({
         <BookmarkItem
           key={bookmark.id}
           bookmark={bookmark}
-          isRefreshing={refreshingId === bookmark.id}
-          onRefresh={onRefresh}
           onDelete={onDelete}
         />
       ))}

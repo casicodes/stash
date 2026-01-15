@@ -22,10 +22,8 @@ async function fetchHtml(url: string) {
       redirect: "follow",
       signal: ctrl.signal,
       headers: {
-        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "accept-language": "en-US,en;q=0.9",
-        "cache-control": "no-cache"
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
+        "Accept": "text/html",
       }
     });
 
@@ -63,7 +61,11 @@ export default Deno.serve(async (req) => {
     return json({ ok: true, skipped: true });
   }
 
-  const meta = extractMetadata(html);
+  const meta = extractMetadata(html, bookmark.url);
+  
+  if (!meta.title && !meta.imageUrl) {
+    console.warn("OG scrape failed for", bookmark.url);
+  }
 
   const updateRes = await supabase
     .from("bookmarks")

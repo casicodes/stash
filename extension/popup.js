@@ -1,5 +1,5 @@
 // Configuration - update with your Shelf app URL
-const SHELF_URL = "https://createshelf.vercel.app";
+const SHELF_URL = "http://localhost:3000";
 const API_URL = `${SHELF_URL}/api/bookmarks`;
 const AUTH_URL = `${SHELF_URL}/auth/extension-callback`;
 
@@ -60,7 +60,7 @@ async function getPendingSave() {
 }
 
 // Save a bookmark
-async function saveBookmark(url, notes = null) {
+async function saveBookmark(url, notes = null, clientTitle = null) {
   showCard(savingCard);
 
   const token = await getToken();
@@ -72,6 +72,9 @@ async function saveBookmark(url, notes = null) {
   try {
     const body = { url };
     if (notes) body.notes = notes;
+    if (clientTitle && typeof clientTitle === "string" && clientTitle.trim()) {
+      body.client_title = clientTitle.trim();
+    }
 
     const response = await fetch(API_URL, {
       method: "POST",
@@ -117,6 +120,45 @@ async function saveBookmark(url, notes = null) {
   }
 }
 
+// This function runs in the page context to extract LinkedIn page title from <title> tag
+function extractLinkedInTitle() {
+  try {
+    const titleTag = document.querySelector("head title");
+    if (titleTag) {
+      const title = titleTag.textContent?.trim();
+      if (title && title.length > 0) {
+        return title;
+      }
+    }
+    return document.title || null;
+  } catch (error) {
+    console.error("Shelf: Failed to extract LinkedIn title", error);
+    return null;
+  }
+}
+
+// Extract title from LinkedIn page if needed
+async function getPageTitle(tab) {
+  try {
+    const url = new URL(tab.url);
+    const isLinkedIn =
+      url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com");
+
+    if (isLinkedIn) {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: extractLinkedInTitle,
+      });
+      if (results && results[0]?.result) {
+        return results[0].result;
+      }
+    }
+  } catch (error) {
+    console.error("Shelf: Failed to extract page title", error);
+  }
+  return tab.title;
+}
+
 // Save the current tab (used when clicking extension icon)
 async function saveCurrentTab() {
   const tab = await getCurrentTab();
@@ -124,7 +166,8 @@ async function saveCurrentTab() {
     showCard(authCard);
     return;
   }
-  await saveBookmark(tab.url);
+  const pageTitle = await getPageTitle(tab);
+  await saveBookmark(tab.url, null, pageTitle || null);
 }
 
 // Event listeners
@@ -150,7 +193,11 @@ async function init() {
   // Check for pending save from context menu first
   const pendingSave = await getPendingSave();
   if (pendingSave) {
-    await saveBookmark(pendingSave.url, pendingSave.notes);
+    await saveBookmark(
+      pendingSave.url,
+      pendingSave.notes,
+      pendingSave.clientTitle || null
+    );
   } else {
     await saveCurrentTab();
   }

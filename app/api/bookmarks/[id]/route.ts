@@ -24,14 +24,23 @@ export async function DELETE(req: Request, context: RouteContext) {
   const { id } = await context.params;
 
   // Delete the bookmark (only if owned by user)
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("bookmarks")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Check if a row was actually deleted
+  if (!data || data.length === 0) {
+    return NextResponse.json(
+      { error: "Bookmark not found or already deleted" },
+      { status: 404 }
+    );
   }
 
   return NextResponse.json({ success: true });

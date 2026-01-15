@@ -16,47 +16,75 @@ import {
 
 type BookmarkItemProps = {
   bookmark: Bookmark;
-  isRefreshing: boolean;
-  onRefresh: (id: string) => void;
   onDelete: (id: string) => void;
 };
 
 const markdownProseClassName =
   "prose prose-neutral prose-sm max-w-none [&_p]:my-4 [&_p]:text-[15px] [&_p]:leading-6 [&_p]:text-neutral-800 [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-3 [&_h3]:mb-2 [&_h3]:mt-3 [&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-4 [&_li]:text-[15px] [&_li]:leading-6 [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-neutral-300 [&_blockquote]:pl-4 [&_pre]:my-4 [&_pre]:rounded-lg [&_pre]:bg-neutral-100 [&_pre]:p-3 [&_code]:rounded [&_code]:bg-neutral-100 [&_code]:px-1 [&_code]:py-0.5 [&_em]:not-italic [&_em]:text-neutral-500";
 
-export function BookmarkItem({
-  bookmark,
-  isRefreshing,
-  onRefresh,
-  onDelete,
-}: BookmarkItemProps) {
+export function BookmarkItem({ bookmark, onDelete }: BookmarkItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const isTextNote = bookmark.url.startsWith("note://");
+  const isImageBookmark = bookmark.tags?.includes("images") ?? false;
   const isLoading = bookmark.id.startsWith("temp-");
-  const faviconUrl = isTextNote ? null : getFaviconUrl(bookmark.url);
+  const hasOgImage = bookmark.image_url && bookmark.image_url.trim().length > 0;
+  const faviconUrl =
+    isTextNote || isImageBookmark ? null : getFaviconUrl(bookmark.url);
 
   const displayText = isTextNote
     ? stripMarkdown(bookmark.notes ?? bookmark.title ?? "Note")
+    : isImageBookmark
+    ? bookmark.title ?? bookmark.description ?? "Saved image"
     : bookmark.title ?? bookmark.url;
 
-  const showRefresh = !isTextNote && !bookmark.title && !isLoading;
-
-  const icon = isTextNote ? (
-    <div className="h-5 w-5 shrink-0 rounded-full bg-neutral-200" />
-  ) : isLoading ? (
-    <div className="h-5 w-5 shrink-0 animate-pulse rounded-full bg-neutral-200" />
-  ) : faviconUrl ? (
-    <img
-      src={faviconUrl}
-      alt=""
-      width={20}
-      height={20}
-      className="h-5 w-5 shrink-0 rounded-full"
-    />
-  ) : (
-    <div className="h-5 w-5 shrink-0 rounded-full bg-neutral-200" />
-  );
+  const icon =
+    isTextNote && hasOgImage ? (
+      <div className="h-[50px] w-[80px] shrink-0 overflow-hidden rounded-lg bg-neutral-100 relative">
+        <img
+          src={bookmark.image_url!}
+          alt=""
+          width={90}
+          height={60}
+          className="absolute inset-0 h-full w-full object-cover object-center"
+          style={{ objectFit: "cover", display: "block" }}
+        />
+      </div>
+    ) : isTextNote ? (
+      <div className="h-12 w-15 shrink-0 rounded-full bg-neutral-200" />
+    ) : isImageBookmark ? (
+      <div className="h-[50px] w-[80px] shrink-0 overflow-hidden rounded-lg bg-neutral-100 relative">
+        <img
+          src={bookmark.image_url ?? bookmark.url}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover object-center"
+          style={{ objectFit: "cover", display: "block" }}
+        />
+      </div>
+    ) : isLoading ? (
+      <div className="h-12 w-15 shrink-0 animate-pulse rounded-full bg-neutral-200" />
+    ) : hasOgImage ? (
+      <div className="h-[50px] w-[80px] shrink-0 overflow-hidden rounded-lg bg-neutral-100 relative">
+        <img
+          src={bookmark.image_url!}
+          alt=""
+          width={80}
+          height={50}
+          className="absolute inset-0 h-full w-full object-cover object-center"
+          style={{ objectFit: "cover", display: "block" }}
+        />
+      </div>
+    ) : faviconUrl ? (
+      <img
+        src={faviconUrl}
+        alt=""
+        width={80}
+        height={50}
+        className="h-12 w-15 shrink-0 rounded-full"
+      />
+    ) : (
+      <div className="h-12 w-15 shrink-0 rounded-full bg-neutral-200" />
+    );
 
   const mainContent = (
     <div className="flex min-w-0 flex-1 items-center gap-3 pr-8">
@@ -74,9 +102,13 @@ export function BookmarkItem({
         ) : (
           <>
             <p className="truncate leading-5">{displayText}</p>
-            {!isTextNote && bookmark.title && (
+            {!isTextNote && (isImageBookmark || bookmark.title) && (
               <p className="truncate text-neutral-400 text-sm">
-                {bookmark.url}
+                {isImageBookmark &&
+                bookmark.notes &&
+                bookmark.notes.startsWith("http")
+                  ? bookmark.notes
+                  : bookmark.url}
               </p>
             )}
           </>
@@ -87,20 +119,6 @@ export function BookmarkItem({
 
   const actionButtons = (
     <div className="flex items-center gap-3">
-      {showRefresh && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onRefresh(bookmark.id);
-          }}
-          disabled={isRefreshing}
-          className="rounded px-2 py-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 disabled:opacity-50"
-        >
-          {isRefreshing ? "..." : "↻"}
-        </button>
-      )}
       <button
         type="button"
         onClick={(e) => {

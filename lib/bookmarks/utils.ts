@@ -31,3 +31,73 @@ export function stripMarkdown(text: string): string {
     .replace(/\s+/g, " ") // Collapse multiple spaces
     .trim();
 }
+
+/**
+ * Removes source reference from markdown text (used for snippets).
+ * Removes lines matching the pattern: "---\n_Source: ..."
+ * @param text - Markdown text to clean
+ * @returns Text without source reference
+ */
+export function removeSourceReference(text: string): string {
+  if (!text) return text;
+  
+  // Remove source reference pattern: --- followed by _Source: [hostname](url)_
+  // This matches the pattern added by the extension: \n\n---\n_Source: [${hostname}](${sourceUrl})_
+  // Handle variations with optional whitespace
+  return text
+    .replace(/\n\n---\s*\n\s*_Source:\s*\[[^\]]+\]\([^)]+\)_/g, "")
+    .replace(/\n\n---\s*\n\s*_Source:.*$/m, "")
+    .trim();
+}
+
+/**
+ * Truncates markdown text while preserving format structure.
+ * Keeps headings, paragraphs, and basic formatting intact.
+ * @param text - Markdown text to truncate
+ * @param maxLength - Maximum character length (default: 300)
+ * @returns Truncated markdown text
+ */
+export function truncateMarkdown(text: string, maxLength: number = 300): string {
+  if (!text || text.length <= maxLength) {
+    return text;
+  }
+
+  // Split by double newlines to preserve paragraph structure
+  const paragraphs = text.split(/\n\n+/);
+  let result = "";
+  let currentLength = 0;
+
+  for (const para of paragraphs) {
+    // Skip source reference paragraphs
+    if (para.match(/^---\s*$/m) || para.match(/^_Source:/m)) {
+      continue;
+    }
+    
+    const paraLength = para.length;
+    
+    if (currentLength + paraLength + 2 <= maxLength) {
+      // Add full paragraph
+      if (result) result += "\n\n";
+      result += para;
+      currentLength += paraLength + 2;
+    } else {
+      // Truncate within this paragraph
+      const remaining = maxLength - currentLength - 5; // Reserve space for "..."
+      if (remaining > 20) {
+        // Only truncate if we have meaningful space left
+        const truncated = para.slice(0, remaining);
+        // Try to break at sentence or word boundary
+        const lastPeriod = truncated.lastIndexOf(".");
+        const lastSpace = truncated.lastIndexOf(" ");
+        const breakPoint = lastPeriod > remaining * 0.7 ? lastPeriod + 1 : lastSpace;
+        
+        if (result) result += "\n\n";
+        result += truncated.slice(0, breakPoint > 0 ? breakPoint : remaining).trim();
+        result += "...";
+      }
+      break;
+    }
+  }
+
+  return result.trim();
+}

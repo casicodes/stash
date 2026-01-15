@@ -28,13 +28,12 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     initial.length === 0 ? "add" : "search"
   );
   const [addInput, setAddInput] = useState("");
-  const [activeFilter, setActiveFilter] = useState<FilterTag | null>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterTag>("all");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Hooks
   const {
     items,
-    refreshingId,
     addBookmark,
     refreshMetadata,
     deleteBookmark,
@@ -70,8 +69,18 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
             label: "Undo",
             onClick: () => undoDelete(id),
           },
-          onDismiss: () => confirmDelete(id),
-          onAutoClose: () => confirmDelete(id),
+          onDismiss: async () => {
+            const { error } = await confirmDelete(id);
+            if (error) {
+              toast.error(`Failed to delete: ${error}`);
+            }
+          },
+          onAutoClose: async () => {
+            const { error } = await confirmDelete(id);
+            if (error) {
+              toast.error(`Failed to delete: ${error}`);
+            }
+          },
         });
       }
     },
@@ -84,7 +93,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
   useKeyboardShortcuts({
     onAddMode: useCallback(() => {
       setMode("add");
-      setActiveFilter(null);
+      setActiveFilter("all");
     }, []),
     onSearchMode: useCallback(() => {
       setMode("search");
@@ -92,7 +101,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     onEscape: useCallback(() => {
       setMode("add");
       clearSearch();
-      setActiveFilter(null);
+      setActiveFilter("all");
     }, [clearSearch]),
     inputRef,
   });
@@ -103,26 +112,21 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
   }, [items]);
 
   const availableTags = useMemo(() => {
-    return FILTER_TAGS.filter((tag) => uniqueTags.has(tag.id)) as Array<{
-      id: FilterTag;
-      label: string;
-    }>;
+    const allTag = FILTER_TAGS.find((tag) => tag.id === "all")!;
+    const otherTags = FILTER_TAGS.filter(
+      (tag) => tag.id !== "all" && uniqueTags.has(tag.id)
+    ) as Array<{ id: FilterTag; label: string }>;
+    return [allTag, ...otherTags];
   }, [uniqueTags]);
 
   // Only show filters if: more than 5 bookmarks AND 2+ unique tags
   const shouldShowFilters = items.length > 5 && uniqueTags.size > 1;
 
-  // Clear activeFilter if it's no longer available
-  useEffect(() => {
-    if (activeFilter && !uniqueTags.has(activeFilter)) {
-      setActiveFilter(null);
-    }
-  }, [activeFilter, uniqueTags]);
-
   // Filter bookmarks by active tag
-  const filteredItems = activeFilter
-    ? items.filter((b) => b.tags?.includes(activeFilter))
-    : null;
+  const filteredItems =
+    activeFilter === "all"
+      ? null
+      : items.filter((b) => b.tags?.includes(activeFilter));
 
   // Display priority: search results > filtered items > all items
   const displayed = searchResults ?? filteredItems ?? items;
@@ -165,15 +169,24 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
   };
 
   return (
-    <div className="mx-auto flex h-screen w-full max-w-4xl flex-col px-6">
+    <div className="mx-auto flex h-screen w-full max-w-3xl flex-col px-6">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white pb-4 px-4">
-        <div className="flex items-center justify-between py-8">
+        <div className="flex items-center gap-12 py-4 ">
           <div className="flex items-center gap-2">
             <img src="/icon48.png" alt="Shelf" className="h-6 w-6" />
-            <div className="font-medium text-neutral-700">
-              Shelf - Your corner of the internet
-            </div>
+            <div className="font-medium text-neutral-700">Shelf</div>
+          </div>
+          <div className="flex-1">
+            <BookmarkInput
+              ref={inputRef}
+              mode={mode}
+              addValue={addInput}
+              searchValue={query}
+              onAddChange={setAddInput}
+              onSearchChange={setQuery}
+              onSubmit={handleSubmit}
+            />
           </div>
           <div className="flex items-center gap-4">
             {!isInstalled && (
@@ -203,25 +216,16 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
           </div>
         </div>
 
-        <BookmarkInput
-          ref={inputRef}
-          mode={mode}
-          addValue={addInput}
-          searchValue={query}
-          onAddChange={setAddInput}
-          onSearchChange={setQuery}
-          onSubmit={handleSubmit}
-        />
-
         {items.length > 0 && (
-          <div className="min-h-[2rem] mt-8 flex items-center justify-between">
-            <div className="text-sm text-neutral-500">My bookmarks</div>
-            {shouldShowFilters && (
+          <div className="min-h-[2rem] flex items-center gap-4 border-t border-b border-dashed border-neutral-100 py-4">
+            {shouldShowFilters ? (
               <FilterTags
                 availableTags={availableTags}
                 activeFilter={activeFilter}
                 onFilterChange={setActiveFilter}
               />
+            ) : (
+              <div className="text-sm text-neutral-500">My bookmarks</div>
             )}
           </div>
         )}
@@ -229,12 +233,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
 
       {/* Bookmark list */}
       <div className="scrollbar-light flex-1 overflow-y-auto pb-8">
-        <BookmarkList
-          bookmarks={displayed}
-          refreshingId={refreshingId}
-          onRefresh={refreshMetadata}
-          onDelete={handleDelete}
-        />
+        <BookmarkList bookmarks={displayed} onDelete={handleDelete} />
       </div>
     </div>
   );

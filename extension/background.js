@@ -1,7 +1,7 @@
 // Background service worker for Shelf extension
 // Handles OAuth token capture and context menu actions
 
-const SHELF_URL = "https://createshelf.vercel.app";
+const SHELF_URL = "http://localhost:3000";
 const API_URL = `${SHELF_URL}/api/bookmarks`;
 const AUTH_CALLBACK_URL = `${SHELF_URL}/auth/extension-callback`;
 
@@ -30,12 +30,69 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "Add to Shelf",
     contexts: ["link"],
   });
+
+  // Save image
+  chrome.contextMenus.create({
+    id: "save-image",
+    title: "Add image to Shelf",
+    contexts: ["image"],
+  });
 });
+
+// Extract title from LinkedIn page if needed
+async function getPageTitle(tab) {
+  try {
+    const url = new URL(tab.url);
+    const isLinkedIn =
+      url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com");
+
+    if (isLinkedIn) {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: extractLinkedInTitle,
+      });
+      if (results && results[0]?.result) {
+        return results[0].result;
+      }
+    }
+  } catch (error) {
+    console.error("Shelf: Failed to extract page title", error);
+  }
+  return tab.title;
+}
 
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
   if (tab.url) {
-    pendingSave = { url: tab.url, notes: null, tabId: tab.id };
+    const pageTitle = await getPageTitle(tab);
+
+    // Extract image for LinkedIn pages
+    let imageUrl = null;
+    try {
+      const urlObj = new URL(tab.url);
+      if (
+        urlObj.hostname === "linkedin.com" ||
+        urlObj.hostname.endsWith(".linkedin.com")
+      ) {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: extractPageImageUrl,
+        });
+        if (results && results[0]?.result) {
+          imageUrl = results[0].result;
+        }
+      }
+    } catch (error) {
+      console.error("Shelf: Failed to extract image URL", error);
+    }
+
+    pendingSave = {
+      url: tab.url,
+      notes: null,
+      tabId: tab.id,
+      clientTitle: pageTitle,
+      imageUrl,
+    };
     await injectOverlay(tab.id);
   }
 });
@@ -47,23 +104,111 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (info.menuItemId === "save-page") {
     url = tab.url;
-    pendingSave = { url, notes, tabId: tab.id };
+    const pageTitle = await getPageTitle(tab);
+
+    // Extract image for LinkedIn pages
+    let imageUrl = null;
+    try {
+      const urlObj = new URL(tab.url);
+      if (
+        urlObj.hostname === "linkedin.com" ||
+        urlObj.hostname.endsWith(".linkedin.com")
+      ) {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: extractPageImageUrl,
+        });
+        if (results && results[0]?.result) {
+          imageUrl = results[0].result;
+        }
+      }
+    } catch (error) {
+      console.error("Shelf: Failed to extract image URL", error);
+    }
+
+    pendingSave = {
+      url,
+      notes,
+      tabId: tab.id,
+      clientTitle: pageTitle,
+      imageUrl,
+    };
     await injectOverlay(tab.id);
   } else if (info.menuItemId === "save-selection") {
     // Save selection as a text note (not as a page bookmark)
     const plainText = info.selectionText || "";
     const sourceUrl = tab.url;
+
+    // Extract OG image or favicon from the page
+    let imageUrl = null;
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: extractPageImageUrl,
+      });
+      if (results && results[0]?.result) {
+        imageUrl = results[0].result;
+        console.log("Shelf: Extracted image URL:", imageUrl);
+      }
+    } catch (error) {
+      console.error("Shelf: Failed to extract image URL", error);
+    }
+
     pendingSave = {
       url: null,
       notes: null,
       tabId: tab.id,
       sourceUrl,
       awaitingSelection: true,
+      imageUrl: imageUrl,
     };
     await captureFormattedSelection(tab.id, plainText);
   } else if (info.menuItemId === "save-link") {
     url = info.linkUrl;
-    pendingSave = { url, notes, tabId: tab.id };
+    const pageTitle = await getPageTitle(tab);
+
+    // Extract image for LinkedIn links
+    let imageUrl = null;
+    try {
+      const urlObj = new URL(info.linkUrl);
+      if (
+        urlObj.hostname === "linkedin.com" ||
+        urlObj.hostname.endsWith(".linkedin.com")
+      ) {
+        // For links, we need to check the tab URL, not the link URL
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: extractPageImageUrl,
+        });
+        if (results && results[0]?.result) {
+          imageUrl = results[0].result;
+        }
+      }
+    } catch (error) {
+      console.error("Shelf: Failed to extract image URL", error);
+    }
+
+    pendingSave = {
+      url,
+      notes,
+      tabId: tab.id,
+      clientTitle: pageTitle,
+      imageUrl,
+    };
+    await injectOverlay(tab.id);
+  } else if (info.menuItemId === "save-image") {
+    // Save the image URL and tag it as an image bookmark
+    // Store page URL in notes so we can display it later
+    url = info.srcUrl;
+    notes = tab.url;
+    const pageTitle = await getPageTitle(tab);
+    pendingSave = {
+      url,
+      notes,
+      tabId: tab.id,
+      tags: ["images"],
+      clientTitle: pageTitle,
+    };
     await injectOverlay(tab.id);
   }
 });
@@ -72,6 +217,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 async function captureFormattedSelection(tabId, plainText) {
   // Ensure we always have content - use plainText as the base
   let content = plainText || "";
+
+  // Image URL should already be extracted and stored in pendingSave.imageUrl
 
   try {
     const results = await chrome.scripting.executeScript({
@@ -111,10 +258,95 @@ async function captureFormattedSelection(tabId, plainText) {
 
     pendingSave.url = fullContent;
     pendingSave.notes = null;
+    // imageUrl is already set from the extraction above
   }
 
   pendingSave.awaitingSelection = false;
   await injectOverlay(tabId);
+}
+
+// This function runs in the page context to extract LinkedIn page title from <title> tag
+function extractLinkedInTitle() {
+  try {
+    const titleTag = document.querySelector("head title");
+    if (titleTag) {
+      const title = titleTag.textContent?.trim();
+      if (title && title.length > 0) {
+        return title;
+      }
+    }
+    return document.title || null;
+  } catch (error) {
+    console.error("Shelf: Failed to extract LinkedIn title", error);
+    return null;
+  }
+}
+
+// This function runs in the page context to extract OG image or favicon
+function extractPageImageUrl() {
+  try {
+    // Try to get OG image first
+    const ogImage = document.querySelector('meta[property="og:image"]');
+    if (ogImage) {
+      const url = ogImage.getAttribute("content");
+      if (url) {
+        // Resolve relative URLs
+        try {
+          return new URL(url, window.location.href).toString();
+        } catch {
+          return url;
+        }
+      }
+    }
+
+    // Try Twitter image
+    const twitterImage = document.querySelector('meta[name="twitter:image"]');
+    if (twitterImage) {
+      const url = twitterImage.getAttribute("content");
+      if (url) {
+        try {
+          return new URL(url, window.location.href).toString();
+        } catch {
+          return url;
+        }
+      }
+    }
+
+    // Try favicon
+    const favicon =
+      document.querySelector('link[rel="icon"]') ||
+      document.querySelector('link[rel="shortcut icon"]') ||
+      document.querySelector('link[rel="apple-touch-icon"]');
+    if (favicon) {
+      const url = favicon.getAttribute("href");
+      if (url) {
+        try {
+          return new URL(url, window.location.href).toString();
+        } catch {
+          return url;
+        }
+      }
+    }
+
+    // For LinkedIn, use LinkedIn favicon as fallback
+    try {
+      const hostname = window.location.hostname;
+      if (hostname === "linkedin.com" || hostname.endsWith(".linkedin.com")) {
+        return "https://static.licdn.com/aero-v1/sc/h/al2o9zrvru7aqj8e1x2rzsrca";
+      }
+    } catch {
+      // Continue to default fallback
+    }
+
+    // Fallback to default favicon location
+    try {
+      return new URL("/favicon.ico", window.location.origin).toString();
+    } catch {
+      return null;
+    }
+  } catch (error) {
+    return null;
+  }
 }
 
 // This function runs in the page context to extract formatted selection
@@ -291,7 +523,7 @@ async function getToken() {
 }
 
 // Save bookmark via API
-async function saveBookmark(url, notes, tabId) {
+async function saveBookmark(url, notes, tabId, tags, imageUrl, clientTitle) {
   // Validate url before proceeding
   if (!url || !url.trim()) {
     console.error("Shelf: No URL provided");
@@ -315,6 +547,16 @@ async function saveBookmark(url, notes, tabId) {
   try {
     const body = { url };
     if (notes) body.notes = notes;
+    if (Array.isArray(tags) && tags.length > 0) body.tags = tags;
+    if (clientTitle && typeof clientTitle === "string" && clientTitle.trim()) {
+      body.client_title = clientTitle.trim();
+    }
+    if (imageUrl) {
+      body.image_url = imageUrl;
+      console.log("Shelf: Sending image_url, length:", imageUrl.length);
+    } else {
+      console.log("Shelf: No imageUrl provided");
+    }
 
     const response = await fetch(API_URL, {
       method: "POST",
@@ -373,12 +615,12 @@ async function saveBookmark(url, notes, tabId) {
 // Listen for overlay ready message
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type === "SHELF_OVERLAY_READY" && pendingSave) {
-    const { url, notes, tabId } = pendingSave;
+    const { url, notes, tabId, tags, imageUrl, clientTitle } = pendingSave;
     pendingSave = null;
 
     // Only save if we have a url (content)
     if (url && url.trim()) {
-      saveBookmark(url, notes, tabId);
+      saveBookmark(url, notes, tabId, tags, imageUrl, clientTitle);
     } else {
       chrome.tabs.sendMessage(tabId, {
         type: "SHELF_SAVE_RESULT",
@@ -401,7 +643,11 @@ async function injectOverlay(tabId) {
     // If injection fails (e.g., chrome:// pages), fall back to popup window
     if (pendingSave) {
       await chrome.storage.local.set({
-        shelf_pending_save: { url: pendingSave.url, notes: pendingSave.notes },
+        shelf_pending_save: {
+          url: pendingSave.url,
+          notes: pendingSave.notes,
+          clientTitle: pendingSave.clientTitle,
+        },
       });
       pendingSave = null;
     }

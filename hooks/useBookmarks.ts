@@ -2,24 +2,57 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Bookmark } from "@/types/bookmark";
-import { fetchBookmarks, createBookmark, refreshBookmarkMetadata, deleteBookmark as deleteBookmarkApi } from "@/lib/api/bookmarks";
+import {
+  fetchBookmarks,
+  createBookmark,
+  refreshBookmarkMetadata,
+  deleteBookmark as deleteBookmarkApi,
+} from "@/lib/api/bookmarks";
 
 // Helper to deduplicate bookmarks by ID, keeping the first occurrence
 function deduplicateBookmarks(bookmarks: Bookmark[]): Bookmark[] {
   const seen = new Set<string>();
   return bookmarks.filter((bookmark) => {
-    if (seen.has(bookmark.id)) {
-      return false;
-    }
+    if (seen.has(bookmark.id)) return false;
     seen.add(bookmark.id);
     return true;
   });
 }
 
+function sleep(ms: number) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+function isNote(bookmark: Bookmark) {
+  return bookmark.url.startsWith("note://");
+}
+
+function isTemp(bookmark: Bookmark) {
+  return bookmark.id.startsWith("temp-");
+}
+
+function hasMeta(bookmark: Bookmark) {
+  const hasTitle = Boolean(bookmark.title && bookmark.title.trim().length > 0);
+  const hasOgImage = Boolean(
+    bookmark.image_url && bookmark.image_url.trim().length > 0
+  );
+  // If you want title-only to be acceptable, change this to `hasTitle`
+  return hasTitle && hasOgImage;
+}
+
 export function useBookmarks(initial: Bookmark[]) {
   const [items, setItems] = useState<Bookmark[]>(deduplicateBookmarks(initial));
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
-  const pendingDeletes = useRef<Map<string, { bookmark: Bookmark; index: number }>>(new Map());
+
+  const pendingDeletes = useRef<
+    Map<string, { bookmark: Bookmark; index: number }>
+  >(new Map());
+
+  // Tracks how many times we attempted metadata refresh per bookmark
+  const attemptsById = useRef<Map<string, number>>(new Map());
+
+  // Prevents overlapping auto-refresh loops
+  const isAutoRefreshingRef = useRef(false);
 
   // Refresh bookmarks on mount
   useEffect(() => {
@@ -27,6 +60,82 @@ export function useBookmarks(initial: Bookmark[]) {
       .then((bookmarks) => setItems(deduplicateBookmarks(bookmarks)))
       .catch(() => {});
   }, []);
+
+  // Automatically refresh metadata for bookmarks missing OG title/image
+  useEffect(() => {
+    // Avoid starting multiple refresh loops concurrently
+    if (isAutoRefreshingRef.current) return;
+
+    const MAX_ATTEMPTS = 3;
+
+    const candidates = items.filter((b) => {
+      if (isNote(b) || isTemp(b)) return false;
+      if (hasMeta(b)) return false;
+
+      const attempts = attemptsById.current.get(b.id) ?? 0;
+      return attempts < MAX_ATTEMPTS;
+    });
+
+    if (candidates.length === 0) return;
+
+    isAutoRefreshingRef.current = true;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Refresh sequentially to avoid hammering your API
+        for (const b of candidates) {
+          if (cancelled) return;
+
+          setRefreshingId(b.id);
+
+          // increment attempt count
+          attemptsById.current.set(
+            b.id,
+            (attemptsById.current.get(b.id) ?? 0) + 1
+          );
+
+          try {
+            const res = await refreshBookmarkMetadata(b.id);
+            console.log("OG REFRESH RESPONSE", b.url, res);
+
+            const updated = res.bookmark;
+
+            if (cancelled) return;
+
+            if (updated) {
+              setItems((prev) =>
+                deduplicateBookmarks(
+                  prev.map((x) => (x.id === b.id ? { ...x, ...updated } : x))
+                )
+              );
+
+              // If after update we now have meta, we can stop retrying.
+              // (Optional: remove attempts entry to keep map small)
+              // We'll keep attempts as-is; it won't be retried because hasMeta(b) will become true.
+            }
+
+            // small spacing between requests
+            await sleep(500);
+          } catch {
+            // On failure, wait a bit longer (backoff) before next request
+            await sleep(1200);
+          } finally {
+            if (!cancelled) setRefreshingId(null);
+          }
+        }
+      } finally {
+        isAutoRefreshingRef.current = false;
+        if (!cancelled) setRefreshingId(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      isAutoRefreshingRef.current = false;
+    };
+  }, [items]);
 
   const addBookmark = useCallback(async (url: string) => {
     const tempId = `temp-${Date.now()}`;
@@ -41,13 +150,14 @@ export function useBookmarks(initial: Bookmark[]) {
       created_at: new Date().toISOString(),
     };
 
-    // Optimistic update
     setItems((prev) => deduplicateBookmarks([optimistic, ...prev]));
 
     const { bookmark, error } = await createBookmark(url);
 
     if (error) {
-      setItems((prev) => deduplicateBookmarks(prev.filter((b) => b.id !== tempId)));
+      setItems((prev) =>
+        deduplicateBookmarks(prev.filter((b) => b.id !== tempId))
+      );
       return { error };
     }
 
@@ -55,9 +165,13 @@ export function useBookmarks(initial: Bookmark[]) {
       setItems((prev) =>
         deduplicateBookmarks(prev.map((b) => (b.id === tempId ? bookmark : b)))
       );
+
+      // reset attempts so auto-refresh can try again for this new real ID
+      attemptsById.current.delete(bookmark.id);
     } else {
-      // If no bookmark returned but no error, remove optimistic update and refetch
-      setItems((prev) => deduplicateBookmarks(prev.filter((b) => b.id !== tempId)));
+      setItems((prev) =>
+        deduplicateBookmarks(prev.filter((b) => b.id !== tempId))
+      );
       fetchBookmarks()
         .then((bookmarks) => setItems(deduplicateBookmarks(bookmarks)))
         .catch(() => {});
@@ -68,41 +182,50 @@ export function useBookmarks(initial: Bookmark[]) {
 
   const refreshMetadata = useCallback(async (id: string) => {
     setRefreshingId(id);
-    
+
+    // manual refresh should reset attempts so it gets a fair shot
+    attemptsById.current.delete(id);
+
     const { bookmark, error } = await refreshBookmarkMetadata(id);
-    
+
     if (bookmark) {
       setItems((prev) =>
-        deduplicateBookmarks(prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b)))
+        deduplicateBookmarks(
+          prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b))
+        )
       );
     }
-    
+
     setRefreshingId(null);
     return { bookmark, error };
   }, []);
 
-  // Remove from UI but don't delete from DB yet
-  const deleteBookmark = useCallback((id: string): { deletedBookmark: Bookmark | null } => {
-    let deletedBookmark: Bookmark | null = null;
-    let deletedIndex = 0;
+  const deleteBookmark = useCallback(
+    (id: string): { deletedBookmark: Bookmark | null } => {
+      let deletedBookmark: Bookmark | null = null;
+      let deletedIndex = 0;
 
-    setItems((prev) => {
-      const index = prev.findIndex((b) => b.id === id);
-      if (index !== -1) {
-        deletedBookmark = prev[index];
-        deletedIndex = index;
+      setItems((prev) => {
+        const index = prev.findIndex((b) => b.id === id);
+        if (index !== -1) {
+          deletedBookmark = prev[index];
+          deletedIndex = index;
+        }
+        return deduplicateBookmarks(prev.filter((b) => b.id !== id));
+      });
+
+      if (deletedBookmark) {
+        pendingDeletes.current.set(id, {
+          bookmark: deletedBookmark,
+          index: deletedIndex,
+        });
       }
-      return deduplicateBookmarks(prev.filter((b) => b.id !== id));
-    });
 
-    if (deletedBookmark) {
-      pendingDeletes.current.set(id, { bookmark: deletedBookmark, index: deletedIndex });
-    }
+      return { deletedBookmark };
+    },
+    []
+  );
 
-    return { deletedBookmark };
-  }, []);
-
-  // Restore a soft-deleted bookmark
   const undoDelete = useCallback((id: string) => {
     const pending = pendingDeletes.current.get(id);
     if (!pending) return;
@@ -111,25 +234,46 @@ export function useBookmarks(initial: Bookmark[]) {
 
     setItems((prev) => {
       const newItems = [...prev];
-      // Insert at original position or start if index is out of bounds
       const insertIndex = Math.min(pending.index, newItems.length);
       newItems.splice(insertIndex, 0, pending.bookmark);
       return deduplicateBookmarks(newItems);
     });
   }, []);
 
-  // Actually delete from database
   const confirmDelete = useCallback(async (id: string) => {
-    pendingDeletes.current.delete(id);
+    const pending = pendingDeletes.current.get(id);
     
+    // If pending doesn't exist, it means undo was called, so skip deletion
+    if (!pending) {
+      return { success: true };
+    }
+    
+    pendingDeletes.current.delete(id);
+
     const { success, error } = await deleteBookmarkApi(id);
 
     if (!success) {
-      // Refetch on failure
-      const bookmarks = await fetchBookmarks();
-      setItems(deduplicateBookmarks(bookmarks));
+      // If delete failed, restore the bookmark to the UI and sync with server
+      setItems((prev) => {
+        const newItems = [...prev];
+        const insertIndex = Math.min(pending.index, newItems.length);
+        newItems.splice(insertIndex, 0, pending.bookmark);
+        return deduplicateBookmarks(newItems);
+      });
+      
+      // Fetch from server to ensure we're in sync
+      try {
+        const bookmarks = await fetchBookmarks();
+        setItems(deduplicateBookmarks(bookmarks));
+      } catch {
+        // If fetch fails, we've already restored the item above
+      }
+      
       return { error };
     }
+
+    // cleanup retry tracking
+    attemptsById.current.delete(id);
 
     return { success: true };
   }, []);

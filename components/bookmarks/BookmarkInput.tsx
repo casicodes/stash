@@ -38,7 +38,7 @@ export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
 
     return (
       <form onSubmit={handleSubmit}>
-        <div className="flex items-center gap-3 rounded-xl ring-1 ring-neutral-200 shadow-sm focus-within:shadow focus-within:ring-neutral-300 px-4 py-3 transition-shadow">
+        <div className="flex items-center gap-2 rounded-md ring-1 ring-neutral-200 shadow-sm focus-within:shadow focus-within:ring-neutral-300 px-2 py-0.5 transition-shadow">
           {mode === "add" ? (
             <svg
               className="h-5 w-5 text-neutral-500"
@@ -63,7 +63,7 @@ export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
           )}
           <input
             ref={ref}
-            className="h-7 w-full bg-transparent outline-none placeholder:text-neutral-400"
+            className="h-7 text-sm w-full bg-transparent outline-none placeholder:text-neutral-400"
             placeholder={
               mode === "add" ? "Insert a link or just plain text..." : "Search"
             }
@@ -75,18 +75,18 @@ export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
             }
             onPaste={handlePaste}
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {mode === "add" ? (
               <>
-                <span className="flex size-7 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium  text-neutral-500">
+                <span className="text-sm flex size-5 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium  text-neutral-500">
                   ⌘
                 </span>
-                <span className="font-mono flex size-7 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium text-neutral-500">
+                <span className="text-sm flex size-5 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium text-neutral-500">
                   F
                 </span>
               </>
             ) : (
-              <span className="font-mono flex h-7 px-2 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium text-neutral-500">
+              <span className="text-sm flex h-5 px-2 items-center justify-center rounded-md bg-neutral-100/50 text-xs font-medium text-neutral-500">
                 Esc
               </span>
             )}
