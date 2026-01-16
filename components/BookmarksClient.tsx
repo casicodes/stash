@@ -3,7 +3,6 @@
 import { useRef, useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
 
 import type { Bookmark, FilterTag } from "@/types/bookmark";
 import { FILTER_TAGS } from "@/types/bookmark";
@@ -12,14 +11,13 @@ import { useSearch } from "@/hooks/useSearch";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useExtensionInstalled } from "@/hooks/useExtensionInstalled";
 import { logout } from "@/lib/api/bookmarks";
+import { normalizeUrl } from "@/lib/url/normalize";
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-import { BookmarkInput, BookmarkList, FilterTags } from "./bookmarks";
+  BookmarkInput,
+  BookmarkList,
+  FilterTags,
+  AddUrlDialog,
+} from "./bookmarks";
 
 type BookmarksClientProps = {
   initial: Bookmark[];
@@ -33,8 +31,6 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTag>("all");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [addDialogValue, setAddDialogValue] = useState("");
-  const addDialogInputRef = useRef<HTMLInputElement | null>(null);
 
   // Hooks
   const {
@@ -45,6 +41,8 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     undoDelete,
     confirmDelete,
     renameBookmark,
+    newBookmarkIds,
+    removeNewTag,
   } = useBookmarks(initial);
 
   // Preload audio files
@@ -98,7 +96,6 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onAddMode: useCallback(() => {
-      setAddDialogValue("");
       setAddDialogOpen(true);
     }, []),
   });
@@ -128,73 +125,50 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
   // Display priority: search results > filtered items > all items
   const displayed = searchResults ?? filteredItems ?? items;
 
-  // Focus input when add dialog opens
-  useEffect(() => {
-    if (addDialogOpen && addDialogInputRef.current) {
-      setTimeout(() => {
-        addDialogInputRef.current?.focus();
-      }, 100);
-    }
-  }, [addDialogOpen]);
+  // Check if URL already exists
+  const checkDuplicateUrl = useCallback(
+    (url: string): boolean => {
+      const normalized = normalizeUrl(url);
+      if (!normalized) return false;
 
-  // Handlers
-  const handleAddDialogSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
+      return items.some((bookmark) => {
+        const bookmarkNormalized = normalizeUrl(bookmark.url);
+        return bookmarkNormalized === normalized;
+      });
+    },
+    [items]
+  );
 
-    const url = addDialogValue.trim();
-    if (!url) {
-      toast.error("URL cannot be empty");
-      return;
-    }
+  // Handle add bookmark
+  const handleAddBookmark = useCallback(
+    async (url: string) => {
+      const { error } = await addBookmark(url);
 
-    // Validate URL using HTML5 validation
-    const input = addDialogInputRef.current;
-    if (input && !input.validity.valid) {
-      toast.error("Please enter a valid URL");
-      return;
-    }
-
-    // Close dialog immediately since bookmark will appear in list with loading state
-    setAddDialogOpen(false);
-    const urlToAdd = url;
-    setAddDialogValue("");
-
-    // Add bookmark asynchronously
-    const { error } = await addBookmark(urlToAdd);
-
-    if (error) {
-      if (error === "DUPLICATE_BOOKMARK") {
-        toast.success("Already saved", {
-          icon: (
-            <svg className="h-5 w-5" fill="#008236" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" fill="#008236" />
-              <path
-                d="M9 12l2 2 4-4"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                fill="none"
-              />
-            </svg>
-          ),
-        });
-      } else {
-        toast.error(error);
+      if (error) {
+        if (error === "DUPLICATE_BOOKMARK") {
+          toast.success("Already saved", {
+            icon: (
+              <svg className="h-5 w-5" fill="#008236" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" fill="#008236" />
+                <path
+                  d="M9 12l2 2 4-4"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
+              </svg>
+            ),
+          });
+        }
+        return { error };
       }
-    }
-  };
 
-  const handleAddDialogKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleAddDialogSubmit();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      setAddDialogOpen(false);
-      setAddDialogValue("");
-    }
-  };
+      return {};
+    },
+    [addBookmark]
+  );
 
   const handleSignOut = async () => {
     setIsLoggingOut(true);
@@ -205,7 +179,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
   return (
     <div className="mx-auto flex h-screen w-full max-w-3xl flex-col px-6">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white pb-4 px-4">
+      <div className="sticky top-0 z-10 bg-white px-4">
         <div className="flex items-center gap-12 py-4 ">
           <div className="flex items-center gap-2">
             <img src="/icon48.png" alt="Shelf" className="h-6 w-6" />
@@ -220,12 +194,10 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
             />
             <button
               type="button"
-              onClick={() => {
-                setAddDialogValue("");
-                setAddDialogOpen(true);
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 transition ring-1 ring-neutral-200 shadow-xs bg-white hover:bg-neutral-100/80 hover:text-neutral-800 active:scale-[0.97]"
+              onClick={() => setAddDialogOpen(true)}
+              className="flex h-[32px] w-[35px] items-center justify-center rounded-lg text-neutral-500 transition ring-1 ring-neutral-200 shadow-xs bg-white hover:bg-neutral-100/80 hover:text-neutral-800 active:scale-[0.97] box-border"
               title="Add URL"
+              style={{ boxSizing: "border-box" }}
             >
               <svg
                 className="h-4 w-4"
@@ -287,53 +259,18 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
           bookmarks={displayed}
           onDelete={handleDelete}
           onRename={renameBookmark}
+          newBookmarkIds={newBookmarkIds}
+          onRemoveNewTag={removeNewTag}
         />
       </div>
 
       {/* Add URL Dialog */}
-      <AlertDialog
+      <AddUrlDialog
         open={addDialogOpen}
-        onOpenChange={(open) => {
-          setAddDialogOpen(open);
-          if (!open) {
-            setAddDialogValue("");
-          }
-        }}
-      >
-        <AlertDialogContent
-          onOverlayClick={() => {
-            setAddDialogOpen(false);
-            setAddDialogValue("");
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>Add URL</AlertDialogTitle>
-          </AlertDialogHeader>
-          <form
-            onSubmit={handleAddDialogSubmit}
-            className="flex flex-col gap-4"
-          >
-            <input
-              ref={addDialogInputRef}
-              type="url"
-              value={addDialogValue}
-              onChange={(e) => setAddDialogValue(e.target.value)}
-              onKeyDown={handleAddDialogKeyDown}
-              required
-              className="w-full rounded-lg ring-1 ring-neutral-200 shadow-sm focus-within:shadow focus-within:ring-neutral-300 px-3 py-2 focus:border-neutral-400 focus:outline-none"
-              placeholder="https://"
-            />
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="bg-neutral-800 hover:bg-neutral-700 active:scale-[0.97] focus:ring-0 h-10 px-3 relative overflow-hidden min-w-[100px] flex items-center justify-center rounded-lg text-white font-medium transition text-sm focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2"
-              >
-                Add to Shelf
-              </button>
-            </div>
-          </form>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setAddDialogOpen}
+        onAdd={handleAddBookmark}
+        checkDuplicateUrl={checkDuplicateUrl}
+      />
     </div>
   );
 }

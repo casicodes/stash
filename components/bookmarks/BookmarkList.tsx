@@ -1,19 +1,28 @@
 "use client";
 
+import { useMemo } from "react";
 import type { Bookmark } from "@/types/bookmark";
-import { BookmarkItem } from "./BookmarkItem";
 import { useExtensionInstalled } from "@/hooks/useExtensionInstalled";
+import { categorizeBookmarksByTime } from "@/lib/bookmarks/timeCategories";
+import { TimeSection } from "./TimeSection";
 
 type BookmarkListProps = {
   bookmarks: Bookmark[];
   onDelete: (id: string) => void;
-  onRename: (id: string, title: string) => Promise<{ bookmark?: Bookmark; error?: string }>;
+  onRename: (
+    id: string,
+    title: string
+  ) => Promise<{ bookmark?: Bookmark; error?: string }>;
+  newBookmarkIds: Set<string>;
+  onRemoveNewTag: (id: string) => void;
 };
 
 export function BookmarkList({
   bookmarks,
   onDelete,
   onRename,
+  newBookmarkIds,
+  onRemoveNewTag,
 }: BookmarkListProps) {
   const { isInstalled } = useExtensionInstalled();
 
@@ -21,6 +30,12 @@ export function BookmarkList({
   console.log(
     "Extension detected:",
     isInstalled ? "Installed extension" : "No extension"
+  );
+
+  // Categorize bookmarks by time periods
+  const timeCategories = useMemo(
+    () => categorizeBookmarksByTime(bookmarks),
+    [bookmarks]
   );
 
   if (bookmarks.length === 0) {
@@ -64,15 +79,18 @@ export function BookmarkList({
   }
 
   return (
-    <ul className="divide-y divide-neutral-100/50">
-      {bookmarks.map((bookmark) => (
-        <BookmarkItem
-          key={bookmark.id}
-          bookmark={bookmark}
+    <div className="flex flex-col gap-2">
+      {timeCategories.map((category, index) => (
+        <TimeSection
+          key={category.id}
+          category={category}
           onDelete={onDelete}
           onRename={onRename}
+          newBookmarkIds={newBookmarkIds}
+          onRemoveNewTag={onRemoveNewTag}
+          isFirst={index === 0}
         />
       ))}
-    </ul>
+    </div>
   );
 }

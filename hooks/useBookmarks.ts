@@ -9,6 +9,7 @@ import {
   deleteBookmark as deleteBookmarkApi,
   renameBookmark as renameBookmarkApi,
 } from "@/lib/api/bookmarks";
+import { createClient } from "@/lib/supabase/client";
 
 // Helper to deduplicate bookmarks by ID, keeping the first occurrence
 function deduplicateBookmarks(bookmarks: Bookmark[]): Bookmark[] {
@@ -44,6 +45,10 @@ function hasMeta(bookmark: Bookmark) {
 export function useBookmarks(initial: Bookmark[]) {
   const [items, setItems] = useState<Bookmark[]>(deduplicateBookmarks(initial));
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [newBookmarkIds, setNewBookmarkIds] = useState<Set<string>>(new Set());
+  
+  // Track when bookmarks were marked as new (timestamp)
+  const newBookmarkTimestamps = useRef<Map<string, number>>(new Map());
 
   const pendingDeletes = useRef<
     Map<string, { bookmark: Bookmark; index: number }>
@@ -55,12 +60,116 @@ export function useBookmarks(initial: Bookmark[]) {
   // Prevents overlapping auto-refresh loops
   const isAutoRefreshingRef = useRef(false);
 
+  // Track known bookmark IDs to detect new ones (initialized with initial bookmarks)
+  const knownBookmarkIds = useRef<Set<string>>(
+    new Set(initial.map((b) => b.id))
+  );
+  
+  // Track if we've completed the initial load
+  const hasInitialized = useRef(false);
+
+  // Refresh bookmarks function
+  const refreshBookmarks = useCallback(async () => {
+    try {
+      const bookmarks = await fetchBookmarks();
+      const deduped = deduplicateBookmarks(bookmarks);
+      
+      // Only detect new bookmarks after initial load
+      if (hasInitialized.current) {
+        const newIds = new Set<string>();
+        deduped.forEach((bookmark) => {
+          if (!knownBookmarkIds.current.has(bookmark.id)) {
+            newIds.add(bookmark.id);
+            knownBookmarkIds.current.add(bookmark.id);
+          }
+        });
+        
+        // Mark new bookmarks (only if added recently - within last 30 seconds)
+        const now = Date.now();
+        const RECENT_THRESHOLD = 30000; // 30 seconds
+        
+        if (newIds.size > 0) {
+          newIds.forEach((id) => {
+            newBookmarkTimestamps.current.set(id, now);
+          });
+          
+          setNewBookmarkIds((prev) => {
+            const updated = new Set(prev);
+            newIds.forEach((id) => updated.add(id));
+            return updated;
+          });
+        }
+        
+        // Clean up any existing new tags that are too old
+        setNewBookmarkIds((prev) => {
+          const updated = new Set(prev);
+          let hasChanges = false;
+          prev.forEach((id) => {
+            const timestamp = newBookmarkTimestamps.current.get(id);
+            if (!timestamp || now - timestamp > RECENT_THRESHOLD) {
+              updated.delete(id);
+              newBookmarkTimestamps.current.delete(id);
+              hasChanges = true;
+            }
+          });
+          return hasChanges ? updated : prev;
+        });
+      } else {
+        // On initial load, just update known IDs without marking as new
+        deduped.forEach((bookmark) => {
+          knownBookmarkIds.current.add(bookmark.id);
+        });
+        hasInitialized.current = true;
+      }
+      
+      setItems(deduped);
+    } catch {
+      // Ignore errors
+    }
+  }, []);
+
   // Refresh bookmarks on mount
   useEffect(() => {
-    fetchBookmarks()
-      .then((bookmarks) => setItems(deduplicateBookmarks(bookmarks)))
-      .catch(() => {});
-  }, []);
+    refreshBookmarks();
+  }, [refreshBookmarks]);
+
+  // Set up Supabase Realtime subscription to detect new bookmarks
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel("bookmarks-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "bookmarks",
+        },
+        () => {
+          // When a new bookmark is inserted, refresh the list
+          refreshBookmarks();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refreshBookmarks]);
+
+  // Also refresh when window regains focus (fallback for when realtime might not work)
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshBookmarks();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [refreshBookmarks]);
 
   // Automatically refresh metadata for bookmarks missing OG title/image
   useEffect(() => {
@@ -166,6 +275,12 @@ export function useBookmarks(initial: Bookmark[]) {
       setItems((prev) =>
         deduplicateBookmarks(prev.map((b) => (b.id === tempId ? bookmark : b)))
       );
+
+      // Mark as new bookmark
+      const now = Date.now();
+      knownBookmarkIds.current.add(bookmark.id);
+      newBookmarkTimestamps.current.set(bookmark.id, now);
+      setNewBookmarkIds((prev) => new Set(prev).add(bookmark.id));
 
       // reset attempts so auto-refresh can try again for this new real ID
       attemptsById.current.delete(bookmark.id);
@@ -293,14 +408,52 @@ export function useBookmarks(initial: Bookmark[]) {
     return { bookmark, error };
   }, []);
 
+  // Function to remove bookmark from "new" set
+  const removeNewTag = useCallback((id: string) => {
+    setNewBookmarkIds((prev) => {
+      const updated = new Set(prev);
+      updated.delete(id);
+      return updated;
+    });
+    newBookmarkTimestamps.current.delete(id);
+  }, []);
+  
+  // Periodically clean up old "new" tags
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const RECENT_THRESHOLD = 30000; // 30 seconds
+      
+      setNewBookmarkIds((prev) => {
+        const updated = new Set(prev);
+        let hasChanges = false;
+        
+        prev.forEach((id) => {
+          const timestamp = newBookmarkTimestamps.current.get(id);
+          if (!timestamp || now - timestamp > RECENT_THRESHOLD) {
+            updated.delete(id);
+            newBookmarkTimestamps.current.delete(id);
+            hasChanges = true;
+          }
+        });
+        
+        return hasChanges ? updated : prev;
+      });
+    }, 5000); // Check every 5 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
+
   return {
     items,
     refreshingId,
+    newBookmarkIds,
     addBookmark,
     refreshMetadata,
     deleteBookmark,
     undoDelete,
     confirmDelete,
     renameBookmark,
+    removeNewTag,
   };
 }

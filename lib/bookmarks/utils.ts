@@ -101,3 +101,13 @@ export function truncateMarkdown(text: string, maxLength: number = 300): string 
 
   return result.trim();
 }
+
+/**
+ * Extracts source URL from snippet notes if it exists.
+ * Looks for pattern: _Source: [text](url)_
+ */
+export function extractSourceUrl(notes: string | null): string | null {
+  if (!notes) return null;
+  const sourceMatch = notes.match(/_Source:\s*\[[^\]]+\]\(([^)]+)\)_/);
+  return sourceMatch ? sourceMatch[1] : null;
+}

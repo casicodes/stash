@@ -19,16 +19,34 @@ export async function createBookmark(url: string): Promise<{ bookmark?: Bookmark
       body: JSON.stringify({ url }),
     });
     
-    const json = await res.json().catch(() => ({}));
+    let json: any = {};
+    let responseText: string | null = null;
+    
+    try {
+      responseText = await res.text();
+      json = responseText ? JSON.parse(responseText) : {};
+    } catch (parseError) {
+      responseText = responseText || "Unable to read response";
+    }
     
     if (!res.ok) {
       const errorMsg = json?.error ?? "Failed to save";
-      console.error("Shelf: Create bookmark error", { status: res.status, error: errorMsg, json });
+      console.error("Shelf: Create bookmark error", {
+        status: res.status,
+        statusText: res.statusText,
+        error: errorMsg,
+        responseText: responseText || undefined,
+        json: Object.keys(json).length > 0 ? json : undefined,
+      });
       return { error: errorMsg };
     }
     
     if (!json.bookmark) {
-      console.error("Shelf: No bookmark in response", json);
+      console.error("Shelf: No bookmark in response", {
+        status: res.status,
+        responseText: responseText || undefined,
+        json: Object.keys(json).length > 0 ? json : undefined,
+      });
       return { error: "Invalid response from server" };
     }
     

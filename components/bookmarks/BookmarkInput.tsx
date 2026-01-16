@@ -14,7 +14,7 @@ export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
       <form className="w-full" onSubmit={(e) => e.preventDefault()}>
         <div className="flex items-center gap-2 rounded-md ring-1 ring-neutral-200 shadow-sm focus-within:shadow focus-within:ring-neutral-300 px-2 py-0.5 transition-shadow">
           <svg
-            className="h-5 w-5 flex-shrink-0 text-neutral-500"
+            className="h-4 w-4 flex-shrink-0 text-neutral-500"
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
