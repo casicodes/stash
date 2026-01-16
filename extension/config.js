@@ -10,4 +10,4 @@ const DEV_URL = "http://localhost:3000";
 const PROD_URL = "https://createshelf.vercel.app";
 
 // Set to 'dev' for local development, 'prod' for production builds
-const ENV = "dev";
+const ENV = "prod";

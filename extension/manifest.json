@@ -1,10 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Shelf - Save Bookmarks",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Save any page to your Shelf bookmarks with one click",
-  "permissions": ["activeTab", "storage", "scripting", "contextMenus"],
-  "host_permissions": ["http://localhost:3000/*"],
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://createshelf.vercel.app/*"
+  ],
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
@@ -17,15 +24,23 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://localhost:3000/*"],
-      "js": ["marker.js"],
+      "matches": [
+        "https://createshelf.vercel.app/*"
+      ],
+      "js": [
+        "marker.js"
+      ],
       "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["marker-injected.js"],
-      "matches": ["http://localhost:3000/*"]
+      "resources": [
+        "marker-injected.js"
+      ],
+      "matches": [
+        "https://createshelf.vercel.app/*"
+      ]
     }
   ],
   "icons": {

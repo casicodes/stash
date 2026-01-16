@@ -20,7 +20,7 @@ export function bookmarkViewModel(bookmark: Bookmark): BookmarkViewModel {
   const isTextNote = bookmark.url.startsWith("note://");
   const isImageBookmark = bookmark.tags?.includes("images") ?? false;
   const isLoading = bookmark.id.startsWith("temp-");
-  const hasOgImage = bookmark.image_url && bookmark.image_url.trim().length > 0;
+  const hasOgImage = Boolean(bookmark.image_url && bookmark.image_url.trim().length > 0);
 
   let kind: BookmarkKind;
   if (isTextNote) {

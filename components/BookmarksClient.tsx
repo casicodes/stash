@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState, useCallback, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import type { Bookmark, FilterTag } from "@/types/bookmark";
@@ -10,8 +9,8 @@ import { useBookmarks } from "@/hooks/useBookmarks";
 import { useSearch } from "@/hooks/useSearch";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useExtensionInstalled } from "@/hooks/useExtensionInstalled";
-import { logout } from "@/lib/api/bookmarks";
-import { normalizeUrl } from "@/lib/url/normalize";
+import { useAuth } from "@/hooks/useAuth";
+import { useBookmarkValidation } from "@/hooks/useBookmarkValidation";
 import {
   BookmarkInput,
   BookmarkList,
@@ -24,12 +23,10 @@ type BookmarksClientProps = {
 };
 
 export default function BookmarksClient({ initial }: BookmarksClientProps) {
-  const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const deleteAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [activeFilter, setActiveFilter] = useState<FilterTag>("all");
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   // Hooks
@@ -44,6 +41,9 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     newBookmarkIds,
     removeNewTag,
   } = useBookmarks(initial);
+
+  const { logout, isLoggingOut } = useAuth();
+  const { checkDuplicateUrl } = useBookmarkValidation(items);
 
   // Preload audio files
   useEffect(() => {
@@ -128,19 +128,6 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     return source.filter((b) => b.tags?.includes(activeFilter));
   }, [searchResults, items, activeFilter]);
 
-  // Check if URL already exists
-  const checkDuplicateUrl = useCallback(
-    (url: string): boolean => {
-      const normalized = normalizeUrl(url);
-      if (!normalized) return false;
-
-      return items.some((bookmark) => {
-        const bookmarkNormalized = normalizeUrl(bookmark.url);
-        return bookmarkNormalized === normalized;
-      });
-    },
-    [items]
-  );
 
   // Handle add bookmark
   const handleAddBookmark = useCallback(
@@ -173,11 +160,9 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     [addBookmark]
   );
 
-  const handleSignOut = async () => {
-    setIsLoggingOut(true);
-    await logout();
-    router.push("/auth/sign-in");
-  };
+  const handleSignOut = useCallback(() => {
+    logout();
+  }, [logout]);
 
   return (
     <div className="mx-auto flex h-screen w-full max-w-3xl flex-col px-6">

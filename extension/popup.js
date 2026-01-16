@@ -1,5 +1,5 @@
 // Configuration - update with your Shelf app URL
-const SHELF_URL = "http://localhost:3000";
+const SHELF_URL = "https://createshelf.vercel.app";
 const API_URL = `${SHELF_URL}/api/bookmarks`;
 const AUTH_URL = `${SHELF_URL}/auth/extension-callback`;
 

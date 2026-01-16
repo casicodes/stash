@@ -3,7 +3,7 @@
 console.log("Shelf: Content script loaded (overlay mode)");
 
 (function () {
-  const SHELF_URL = "http://localhost:3000";
+  const SHELF_URL = "https://createshelf.vercel.app";
 
   // Remove existing overlay if present
   const existing = document.getElementById("shelf-save-overlay");
