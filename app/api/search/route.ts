@@ -232,6 +232,5 @@ export async function GET(req: Request) {
         error: "Embedding generation failed",
       }
     });
-  } catch (err) {
-    // Fallback keyword search if embedding generation fails
-    console.error("[Search] Error in hybrid search:", err);
+  }
+}
