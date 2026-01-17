@@ -56,28 +56,29 @@ export async function GET(req: Request) {
 
   let embResult: Awaited<ReturnType<typeof getOrCreateQueryEmbedding>> | null = null;
   let rpcError: string | undefined;
-  try {
-    // Try hybrid search if embeddings are available
-    embResult = await getOrCreateQueryEmbedding(q);
+  
+  // Try hybrid search if embeddings are available
+  embResult = await getOrCreateQueryEmbedding(q);
+  
+  // If no embeddings (no API key, quota exceeded, etc.), skip directly to keyword search
+  if (!embResult) {
+    // Fall through to keyword-only search below
+  } else {
+    // Embeddings available - try hybrid search
+    try {
     
-    // If no embeddings (no API key), skip directly to keyword search
-    if (!embResult) {
-      throw new Error("Embeddings not available - using keyword search");
-    }
-    
-    // Use cached embedding if available
-    const { data, error } = await supabase.rpc("match_bookmarks_hybrid", {
-      p_user_id: user.id,
-      p_query_embedding: `[${embResult.embedding.join(",")}]`,
-      p_query_text: q,
-      p_match_count: limit,
-    });
-    
-    if (error) {
-      rpcError = error.message;
-    }
-
-    if (error) {
+      // Use cached embedding if available
+      const { data, error } = await supabase.rpc("match_bookmarks_hybrid", {
+        p_user_id: user.id,
+        p_query_embedding: `[${embResult.embedding.join(",")}]`,
+        p_query_text: q,
+        p_match_count: limit,
+      });
+      
+      if (error) {
+        rpcError = error.message;
+        // Fall through to keyword search below
+      } else {
       // Fallback to keyword-only search if hybrid fails
       const maybeUrl = normalizeUrl(q);
       const domain = urlDomain(maybeUrl);
@@ -143,46 +144,50 @@ export async function GET(req: Request) {
       });
     }
 
-    // For RPC results, fetch tags separately
-    if (data && data.length > 0) {
-      const bookmarkIds = data.map((b: any) => b.bookmark_id);
-      const tagsMap = await fetchTagsForBookmarks(bookmarkIds);
-      
-      const results = data.map((b: any) => ({
-        id: b.bookmark_id,
-        url: b.url,
-        title: b.title,
-        description: b.description,
-        site_name: b.site_name,
-        image_url: b.image_url,
-        notes: b.notes,
-        created_at: b.created_at,
-        tags: tagsMap.get(b.bookmark_id) ?? [],
-      }));
-      
-      return NextResponse.json({ 
-        results,
-        _cache: {
-          hit: embResult.cacheHit,
-          embedTime: embResult.embedTime,
-          error: embResult.cacheError,
+        // For RPC results, fetch tags separately
+        if (data && data.length > 0) {
+          const bookmarkIds = data.map((b: any) => b.bookmark_id);
+          const tagsMap = await fetchTagsForBookmarks(bookmarkIds);
+          
+          const results = data.map((b: any) => ({
+            id: b.bookmark_id,
+            url: b.url,
+            title: b.title,
+            description: b.description,
+            site_name: b.site_name,
+            image_url: b.image_url,
+            notes: b.notes,
+            created_at: b.created_at,
+            tags: tagsMap.get(b.bookmark_id) ?? [],
+          }));
+          
+          return NextResponse.json({ 
+            results,
+            _cache: embResult ? {
+              hit: embResult.cacheHit,
+              embedTime: embResult.embedTime,
+              error: embResult.cacheError,
+            } : undefined
+          });
         }
-      });
-    }
 
-    return NextResponse.json({ 
-      results: [],
-      _cache: embResult ? {
-        hit: embResult.cacheHit,
-        embedTime: embResult.embedTime,
-        error: embResult.cacheError,
-      } : {
-        hit: false,
-        embedTime: undefined,
-        error: "Unknown error",
+        return NextResponse.json({ 
+          results: [],
+          _cache: embResult ? {
+            hit: embResult.cacheHit,
+            embedTime: embResult.embedTime,
+            error: embResult.cacheError,
+          } : undefined
+        });
       }
-    });
-  } catch (err) {
+    } catch (err) {
+      // RPC call failed - fall through to keyword search
+      console.warn("[Search] Hybrid search failed, using keyword search:", err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Keyword-only search (embeddings not available or failed)
+  {
     // Fallback keyword search if embedding generation or RPC fails
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error("[Search] Error in hybrid search:", errorMessage, err);
@@ -234,18 +239,8 @@ export async function GET(req: Request) {
     
     return NextResponse.json({ 
       results, 
-      fallback: true,
-      _cache: embResult ? {
-        hit: embResult.cacheHit,
-        embedTime: embResult.embedTime,
-        error: embResult.cacheError,
-      } : {
-        hit: false,
-        embedTime: undefined,
-        error: err instanceof Error && err.message.includes("Embeddings not available") 
-          ? undefined // Don't show error for missing API key - keyword search is working
-          : `Search failed: ${err instanceof Error ? err.message : String(err)}`,
-      }
+      fallback: true
+      // Don't include _cache field for keyword-only search
     });
   }
 }

@@ -40,9 +40,17 @@ export async function getOrCreateQueryEmbedding(
 
   const supabase = await createClient();
   if (!supabase) {
-    // Fallback: generate embedding if Supabase not available
-    const { embedding, model } = await createEmbedding(query);
-    return { embedding, model, cacheHit: false };
+    // Fallback: try to generate embedding if Supabase not available
+    // But catch errors gracefully (quota, etc.) and return null
+    try {
+      const { embedding, model } = await createEmbedding(query);
+      return { embedding, model, cacheHit: false };
+    } catch (err) {
+      // API key exists but embedding generation failed (quota, etc.)
+      // Return null to fall back to keyword search
+      console.warn("[Query Cache] Embedding generation failed, using keyword search:", err instanceof Error ? err.message : String(err));
+      return null;
+    }
   }
 
   const queryHash = await hashQuery(query);
@@ -114,9 +122,22 @@ export async function getOrCreateQueryEmbedding(
   // Not in cache - generate new embedding
   console.log(`[Query Cache] MISS: "${normalizedQuery}" (cache check: ${cacheCheckTime}ms${fetchError ? `, error: ${fetchError.message}` : ""})`);
   const embedStart = Date.now();
-  const { embedding, model } = await createEmbedding(query);
-  const embedTime = Date.now() - embedStart;
-  console.log(`[Query Cache] Generated embedding in ${embedTime}ms`);
+  let embedding: number[];
+  let model: string;
+  let embedTime: number;
+  
+  try {
+    const result = await createEmbedding(query);
+    embedding = result.embedding;
+    model = result.model;
+    embedTime = Date.now() - embedStart;
+    console.log(`[Query Cache] Generated embedding in ${embedTime}ms`);
+  } catch (err) {
+    // Embedding generation failed (quota, API error, etc.)
+    // Return null to fall back to keyword search
+    console.warn(`[Query Cache] Failed to generate embedding: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
 
   // Store in cache (ignore errors - caching is best effort)
   const embeddingLiteral = vectorToSqlLiteral(embedding);
