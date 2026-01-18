@@ -193,9 +193,14 @@ export function useBookmarks(initial: Bookmark[]) {
       if (isNote(b) || isTemp(b)) return false;
       if (hasMeta(b)) return false;
       
-      // Skip X bookmarks that already have a valid title (not just "X" or URL-based)
+      // Skip X bookmarks that already have a valid title (not fallback titles)
       const isUrlBasedTitle = b.title && (b.title.startsWith("http") || b.title === b.url);
-      if (isXBookmark(b.url) && b.title && b.title.trim() && b.title.trim() !== "X" && !isUrlBasedTitle) {
+      const isFallbackTitle = b.title && (
+        b.title.trim() === "X" || 
+        b.title === "X post" ||
+        b.title.startsWith("Post by @")
+      );
+      if (isXBookmark(b.url) && b.title && b.title.trim() && !isUrlBasedTitle && !isFallbackTitle) {
         return false;
       }
 

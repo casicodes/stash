@@ -50,9 +50,14 @@ export async function POST(
     return NextResponse.json({ error: "Could not fetch metadata from URL" }, { status: 422 });
   }
 
-  // For X bookmarks, preserve existing title if it's valid (not just "X" or URL-based)
+  // For X bookmarks, preserve existing title if it's valid (not fallback titles)
   const isUrlBasedTitle = existingTitle && (existingTitle.startsWith("http") || existingTitle === bookmark.url);
-  const titleToUpdate = isX && existingTitle && existingTitle.trim() && existingTitle.trim() !== "X" && !isUrlBasedTitle
+  const isFallbackTitle = existingTitle && (
+    existingTitle.trim() === "X" || 
+    existingTitle === "X post" ||
+    existingTitle.startsWith("Post by @")
+  );
+  const titleToUpdate = isX && existingTitle && existingTitle.trim() && !isUrlBasedTitle && !isFallbackTitle
     ? existingTitle
     : metadata.title;
 
