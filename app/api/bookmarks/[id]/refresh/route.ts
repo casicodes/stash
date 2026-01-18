@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { fetchMetadata } from "@/lib/metadata/fetch";
+import { fetchMetadata, isXBookmark } from "@/lib/metadata/fetch";
 
 export async function POST(
   req: Request,
@@ -23,7 +23,7 @@ export async function POST(
   // Verify bookmark exists and belongs to user
   const { data: bookmark, error: bookmarkErr } = await supabase
     .from("bookmarks")
-    .select("id,url,user_id")
+    .select("id,url,user_id,title")
     .eq("id", id)
     .single();
 
@@ -39,6 +39,10 @@ export async function POST(
     return NextResponse.json({ error: "Cannot refresh metadata for text notes" }, { status: 400 });
   }
 
+  // Check if this is an X bookmark - preserve existing title if it exists
+  const isX = isXBookmark(bookmark.url);
+  const existingTitle = bookmark.title;
+
   // Fetch metadata directly
   const metadata = await fetchMetadata(bookmark.url);
 
@@ -46,11 +50,17 @@ export async function POST(
     return NextResponse.json({ error: "Could not fetch metadata from URL" }, { status: 422 });
   }
 
+  // For X bookmarks, preserve existing title if it's valid (not just "X" or URL-based)
+  const isUrlBasedTitle = existingTitle && (existingTitle.startsWith("http") || existingTitle === bookmark.url);
+  const titleToUpdate = isX && existingTitle && existingTitle.trim() && existingTitle.trim() !== "X" && !isUrlBasedTitle
+    ? existingTitle
+    : metadata.title;
+
   // Update bookmark with metadata
   const { error: updateErr } = await supabase
     .from("bookmarks")
     .update({
-      title: metadata.title,
+      title: titleToUpdate,
       description: metadata.description,
       site_name: metadata.siteName,
       image_url: metadata.imageUrl,

@@ -49,12 +49,25 @@ export default Deno.serve(async (req) => {
 
   const { data: bookmark, error: bookmarkErr } = await supabase
     .from("bookmarks")
-    .select("id,user_id,url")
+    .select("id,user_id,url,title")
     .eq("id", payload.bookmarkId)
     .single();
 
   if (bookmarkErr || !bookmark) return json({ error: "Bookmark not found" }, 404);
   if (bookmark.user_id !== payload.userId) return json({ error: "Forbidden" }, 403);
+
+  // Check if this is an X bookmark - preserve existing title if it exists
+  function isXBookmark(url: string): boolean {
+    try {
+      const h = new URL(url).hostname.toLowerCase();
+      return h === "x.com" || h === "twitter.com" || h.endsWith(".x.com") || h.endsWith(".twitter.com");
+    } catch {
+      return false;
+    }
+  }
+
+  const isX = isXBookmark(bookmark.url);
+  const existingTitle = bookmark.title;
 
   const html = await fetchHtml(bookmark.url);
   if (!html) {
@@ -67,10 +80,16 @@ export default Deno.serve(async (req) => {
     console.warn("OG scrape failed for", bookmark.url);
   }
 
+  // For X bookmarks, preserve existing title if it's valid (not just "X" or URL-based)
+  const isUrlBasedTitle = existingTitle && (existingTitle.startsWith("http") || existingTitle === bookmark.url);
+  const titleToUpdate = isX && existingTitle && existingTitle.trim() && existingTitle.trim() !== "X" && !isUrlBasedTitle
+    ? existingTitle
+    : meta.title;
+
   const updateRes = await supabase
     .from("bookmarks")
     .update({
-      title: meta.title,
+      title: titleToUpdate,
       description: meta.description,
       site_name: meta.siteName,
       image_url: meta.imageUrl

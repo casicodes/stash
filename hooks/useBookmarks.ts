@@ -178,9 +178,26 @@ export function useBookmarks(initial: Bookmark[]) {
 
     const MAX_ATTEMPTS = 3;
 
+    // Helper to check if bookmark is X/Twitter
+    function isXBookmark(url: string): boolean {
+      try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.toLowerCase();
+        return hostname === "x.com" || hostname === "twitter.com" || hostname.endsWith(".x.com") || hostname.endsWith(".twitter.com");
+      } catch {
+        return false;
+      }
+    }
+
     const candidates = items.filter((b) => {
       if (isNote(b) || isTemp(b)) return false;
       if (hasMeta(b)) return false;
+      
+      // Skip X bookmarks that already have a valid title (not just "X" or URL-based)
+      const isUrlBasedTitle = b.title && (b.title.startsWith("http") || b.title === b.url);
+      if (isXBookmark(b.url) && b.title && b.title.trim() && b.title.trim() !== "X" && !isUrlBasedTitle) {
+        return false;
+      }
 
       const attempts = attemptsById.current.get(b.id) ?? 0;
       return attempts < MAX_ATTEMPTS;
