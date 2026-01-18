@@ -280,8 +280,7 @@ export async function POST(req: Request) {
       console.log("Shelf API: [TITLE DEBUG] fetchXTitle result:", fetchedTitle?.substring(0, 150));
     }
     
-    const isValidFetchedTitle = fetchedTitle && fetchedTitle.trim() && fetchedTitle.trim() !== "X";
-    if (isValidFetchedTitle) {
+    if (fetchedTitle && fetchedTitle.trim() && fetchedTitle.trim() !== "X") {
       finalTitle = fetchedTitle.trim();
       console.log("Shelf API: [TITLE DEBUG] Using fetchXTitle result:", finalTitle?.substring(0, 150));
     } else {
