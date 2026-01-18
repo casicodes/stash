@@ -80,16 +80,53 @@ export default Deno.serve(async (req) => {
     console.warn("OG scrape failed for", bookmark.url);
   }
 
-  // For X bookmarks, preserve existing title if it's valid (not fallback titles)
-  const isUrlBasedTitle = existingTitle && (existingTitle.startsWith("http") || existingTitle === bookmark.url);
-  const isFallbackTitle = existingTitle && (
-    existingTitle.trim() === "X" || 
-    existingTitle === "X post" ||
-    existingTitle.startsWith("Post by @")
-  );
-  const titleToUpdate = isX && existingTitle && existingTitle.trim() && !isUrlBasedTitle && !isFallbackTitle
-    ? existingTitle
-    : meta.title;
+  // For X bookmarks, try to extract title from HTML (similar to fetchXTitle)
+  let titleToUpdate: string | null = null;
+  if (isX) {
+    // Extract title from HTML for X bookmarks (better than OG tags)
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (titleMatch && titleMatch[1]) {
+      const extractedTitle = titleMatch[1]
+        .replace(/\s+/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&#39;/g, "'")
+        .replace(/&#x27;/g, "'")
+        .trim();
+      
+      // Only use if it's valid (not "X", "login", etc.)
+      if (extractedTitle && 
+          extractedTitle.toLowerCase() !== "x" &&
+          extractedTitle.toLowerCase() !== "twitter" &&
+          !extractedTitle.toLowerCase().includes("login") &&
+          extractedTitle.length >= 3) {
+        titleToUpdate = extractedTitle;
+      }
+    }
+    
+    // If we didn't get a good title from HTML, check if we should preserve existing
+    if (!titleToUpdate) {
+      const isUrlBasedTitle = existingTitle && (existingTitle.startsWith("http") || existingTitle === bookmark.url);
+      const isFallbackTitle = existingTitle && (
+        existingTitle.trim() === "X" || 
+        existingTitle === "X post" ||
+        existingTitle.startsWith("Post by @")
+      );
+      
+      // Only preserve if it's not a fallback title
+      if (existingTitle && existingTitle.trim() && !isUrlBasedTitle && !isFallbackTitle) {
+        titleToUpdate = existingTitle.trim();
+      } else if (meta.title) {
+        titleToUpdate = meta.title;
+      }
+    }
+  } else {
+    // For non-X bookmarks, use metadata title
+    titleToUpdate = meta.title;
+  }
 
   const updateRes = await supabase
     .from("bookmarks")

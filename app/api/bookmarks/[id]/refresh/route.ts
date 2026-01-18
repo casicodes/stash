@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { fetchMetadata, isXBookmark } from "@/lib/metadata/fetch";
+import { fetchMetadata, isXBookmark, fetchXTitle } from "@/lib/metadata/fetch";
 
 export async function POST(
   req: Request,
@@ -43,33 +43,54 @@ export async function POST(
   const isX = isXBookmark(bookmark.url);
   const existingTitle = bookmark.title;
 
-  // Fetch metadata directly
-  const metadata = await fetchMetadata(bookmark.url);
+  // For X bookmarks, use fetchXTitle instead of fetchMetadata (better for X)
+  let titleToUpdate: string | null = null;
+  let metadata = null;
 
-  if (!metadata) {
-    return NextResponse.json({ error: "Could not fetch metadata from URL" }, { status: 422 });
+  if (isX) {
+    // Try to fetch X title first
+    const fetchedXTitle = await fetchXTitle(bookmark.url);
+    if (fetchedXTitle && fetchedXTitle.trim() && fetchedXTitle.trim() !== "X") {
+      titleToUpdate = fetchedXTitle.trim();
+    }
+    
+    // Still fetch metadata for image/description
+    metadata = await fetchMetadata(bookmark.url);
+    
+    // If fetchXTitle didn't work, check if we should preserve existing title
+    if (!titleToUpdate) {
+      const isUrlBasedTitle = existingTitle && (existingTitle.startsWith("http") || existingTitle === bookmark.url);
+      const isFallbackTitle = existingTitle && (
+        existingTitle.trim() === "X" || 
+        existingTitle === "X post" ||
+        existingTitle.startsWith("Post by @")
+      );
+      
+      // Only preserve if it's not a fallback title
+      if (existingTitle && existingTitle.trim() && !isUrlBasedTitle && !isFallbackTitle) {
+        titleToUpdate = existingTitle.trim();
+      } else if (metadata?.title) {
+        titleToUpdate = metadata.title;
+      }
+    }
+  } else {
+    // For non-X bookmarks, use regular metadata fetch
+    metadata = await fetchMetadata(bookmark.url);
+    if (!metadata) {
+      return NextResponse.json({ error: "Could not fetch metadata from URL" }, { status: 422 });
+    }
+    titleToUpdate = metadata.title;
   }
 
-  // For X bookmarks, preserve existing title if it's valid (not fallback titles)
-  const isUrlBasedTitle = existingTitle && (existingTitle.startsWith("http") || existingTitle === bookmark.url);
-  const isFallbackTitle = existingTitle && (
-    existingTitle.trim() === "X" || 
-    existingTitle === "X post" ||
-    existingTitle.startsWith("Post by @")
-  );
-  const titleToUpdate = isX && existingTitle && existingTitle.trim() && !isUrlBasedTitle && !isFallbackTitle
-    ? existingTitle
-    : metadata.title;
-
-  // Update bookmark with metadata
+  // Update bookmark with metadata (handle null metadata for X bookmarks)
   const { error: updateErr } = await supabase
     .from("bookmarks")
     .update({
       title: titleToUpdate,
-      description: metadata.description,
-      site_name: metadata.siteName,
-      image_url: metadata.imageUrl,
-      content_text: metadata.contentText,
+      description: metadata?.description ?? null,
+      site_name: metadata?.siteName ?? null,
+      image_url: metadata?.imageUrl ?? null,
+      content_text: metadata?.contentText ?? null,
     })
     .eq("id", id);
 
