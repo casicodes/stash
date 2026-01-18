@@ -7,11 +7,12 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ExtensionCallbackPage() {
-  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  const supabaseRef = useRef<ReturnType<typeof createClient>>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isConnected, setIsConnected] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -37,6 +38,13 @@ export default function ExtensionCallbackPage() {
   useEffect(() => {
     // Create client only after mount to avoid SSR/window issues
     supabaseRef.current = createClient();
+    if (!supabaseRef.current) {
+      setConfigError(
+        "Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local."
+      );
+      setIsCheckingAuth(false);
+      return;
+    }
 
     // Set up secure handshake with extension
     function handleExtensionReady(event: MessageEvent) {
@@ -115,6 +123,22 @@ export default function ExtensionCallbackPage() {
         setIsConnected(true);
       }
     });
+  }
+
+  if (configError) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Local setup needed
+        </h1>
+        <p className="mt-2 text-sm text-zinc-600">{configError}</p>
+        <div className="mt-6">
+          <Link className="text-zinc-900 hover:underline" href="/auth/sign-in">
+            Go to sign in
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   if (isCheckingAuth) {

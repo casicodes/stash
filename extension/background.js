@@ -39,32 +39,55 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// Extract title from LinkedIn page if needed
+// Extract title from page title tag (for LinkedIn and X)
 async function getPageTitle(tab) {
   try {
     const url = new URL(tab.url);
     const isLinkedIn =
       url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com");
+    const isX =
+      url.hostname === "x.com" ||
+      url.hostname === "twitter.com" ||
+      url.hostname.endsWith(".x.com") ||
+      url.hostname.endsWith(".twitter.com");
 
-    if (isLinkedIn) {
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: extractLinkedInTitle,
-      });
-      if (results && results[0]?.result) {
-        return results[0].result;
+    if (isLinkedIn || isX) {
+      console.log("Shelf: Extracting title for", isX ? "X" : "LinkedIn", "page");
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: extractPageTitle,
+        });
+        console.log("Shelf: Script execution results:", results);
+        if (results && results[0]?.result) {
+          const extractedTitle = results[0].result;
+          console.log("Shelf: Extracted title:", extractedTitle);
+          if (extractedTitle && extractedTitle.trim() && extractedTitle !== "X") {
+            return extractedTitle;
+          } else {
+            console.log("Shelf: Extracted title is empty or just 'X', using tab.title");
+          }
+        } else {
+          console.log("Shelf: No title extracted from script, falling back to tab.title");
+        }
+      } catch (error) {
+        console.error("Shelf: Error executing script:", error);
       }
     }
   } catch (error) {
     console.error("Shelf: Failed to extract page title", error);
   }
-  return tab.title;
+  const fallbackTitle = tab.title;
+  console.log("Shelf: Using fallback title:", fallbackTitle);
+  return fallbackTitle;
 }
 
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
   if (tab.url) {
+    console.log("Shelf: Icon clicked, extracting title for:", tab.url);
     const pageTitle = await getPageTitle(tab);
+    console.log("Shelf: Final pageTitle to use:", pageTitle);
 
     // Extract image for LinkedIn pages
     let imageUrl = null;
@@ -93,6 +116,7 @@ chrome.action.onClicked.addListener(async (tab) => {
       clientTitle: pageTitle,
       imageUrl,
     };
+    console.log("Shelf: Stored pendingSave with clientTitle:", pageTitle?.substring(0, 100));
     await injectOverlay(tab.id);
   }
 });
@@ -265,19 +289,22 @@ async function captureFormattedSelection(tabId, plainText) {
   await injectOverlay(tabId);
 }
 
-// This function runs in the page context to extract LinkedIn page title from <title> tag
-function extractLinkedInTitle() {
+// This function runs in the page context to extract page title from <title> tag
+function extractPageTitle() {
   try {
     const titleTag = document.querySelector("head title");
     if (titleTag) {
       const title = titleTag.textContent?.trim();
+      console.log("Shelf [page context]: Found title tag:", title);
       if (title && title.length > 0) {
         return title;
       }
     }
-    return document.title || null;
+    const docTitle = document.title || null;
+    console.log("Shelf [page context]: Using document.title:", docTitle);
+    return docTitle;
   } catch (error) {
-    console.error("Shelf: Failed to extract LinkedIn title", error);
+    console.error("Shelf [page context]: Failed to extract page title", error);
     return null;
   }
 }
@@ -550,6 +577,9 @@ async function saveBookmark(url, notes, tabId, tags, imageUrl, clientTitle) {
     if (Array.isArray(tags) && tags.length > 0) body.tags = tags;
     if (clientTitle && typeof clientTitle === "string" && clientTitle.trim()) {
       body.client_title = clientTitle.trim();
+      console.log("Shelf: Sending client_title:", body.client_title);
+    } else {
+      console.log("Shelf: No clientTitle provided or invalid");
     }
     if (imageUrl) {
       body.image_url = imageUrl;
@@ -571,6 +601,39 @@ async function saveBookmark(url, notes, tabId, tags, imageUrl, clientTitle) {
     const responseText = await response.text().catch(() => "");
     try {
       data = responseText ? JSON.parse(responseText) : {};
+      
+      // Always log the full response for debugging
+      console.log("Shelf: API response received", {
+        status: response.status,
+        ok: response.ok,
+        bookmarkTitle: data.bookmark?.title,
+        bookmarkTitleType: typeof data.bookmark?.title,
+        debugInfo: data._debug,
+        hasBookmark: !!data.bookmark,
+        bookmarkKeys: data.bookmark ? Object.keys(data.bookmark) : [],
+        responseKeys: Object.keys(data),
+        fullResponse: data,
+      });
+      
+      // Log the raw response text to see what we actually got
+      console.log("Shelf: Raw response text:", responseText?.substring(0, 1000));
+      
+      // Log debug info from API response if available
+      if (data._debug) {
+        console.log("=== Shelf: API response debug info ===");
+        console.log("Shelf: isX:", data._debug.isX);
+        console.log("Shelf: titleToInsert:", data._debug.titleToInsert);
+        console.log("Shelf: finalTitle:", data._debug.finalTitle);
+        console.log("Shelf: clientTitle:", data._debug.clientTitle);
+        console.log("Shelf: receivedClientTitle:", data._debug.receivedClientTitle);
+        console.log("Shelf: hasClientTitle:", data._debug.hasClientTitle);
+        console.log("Shelf: Saved bookmark title:", data.bookmark?.title);
+        console.log("=== End debug info ===");
+      } else {
+        console.error("Shelf: ERROR - No debug info in response!");
+        console.log("Shelf: Response keys:", Object.keys(data));
+        console.log("Shelf: Full response:", JSON.stringify(data, null, 2).substring(0, 1000));
+      }
     } catch (parseError) {
       console.error("Shelf: Failed to parse response", parseError);
       console.error("Shelf: Response status", response.status);
@@ -616,6 +679,7 @@ async function saveBookmark(url, notes, tabId, tags, imageUrl, clientTitle) {
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type === "SHELF_OVERLAY_READY" && pendingSave) {
     const { url, notes, tabId, tags, imageUrl, clientTitle } = pendingSave;
+    console.log("Shelf: Overlay ready, about to save with clientTitle:", clientTitle?.substring(0, 100));
     pendingSave = null;
 
     // Only save if we have a url (content)

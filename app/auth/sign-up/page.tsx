@@ -56,6 +56,12 @@ export default function SignUpPage() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!supabase) {
+      setError(
+        "Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local."
+      );
+      return;
+    }
     startTransition(async () => {
       const { error: signUpError } = await supabase.auth.signUp({
         email,
@@ -71,6 +77,48 @@ export default function SignUpPage() {
       router.push("/");
       router.refresh();
     });
+  }
+
+  if (!supabase) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
+        <Image
+          alt="Shelf logo"
+          className="mb-6 rounded-xl"
+          height={40}
+          priority
+          src="/icon48.png"
+          width={40}
+        />
+        <h1 className="text-2xl font-medium">Local setup needed</h1>
+        <p className="mt-2 text-sm text-neutral-600">
+          Set Supabase env vars to use auth and bookmarks.
+        </p>
+        <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4 text-sm">
+          <div className="font-medium text-neutral-900">Required</div>
+          <ul className="mt-2 list-disc pl-5 text-neutral-700">
+            <li>
+              <code>NEXT_PUBLIC_SUPABASE_URL</code>
+            </li>
+            <li>
+              <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
+            </li>
+          </ul>
+          <p className="mt-3 text-neutral-600">
+            Copy <code>env.example</code> to <code>.env.local</code>. Then
+            restart the dev server.
+          </p>
+        </div>
+        <div className="mt-6">
+          <Link
+            className="text-sm text-neutral-500 hover:text-neutral-800 underline underline-offset-2 transition active:scale-[0.97]"
+            href="/auth/sign-in"
+          >
+            Back to sign in
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   return (

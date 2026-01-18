@@ -325,3 +325,70 @@ export async function fetchMetadata(url: string): Promise<Metadata | null> {
   // Fall back to Microlink for JS-rendered sites (Twitter, LinkedIn, etc.)
   return fetchViaMicrolink(url);
 }
+
+export function isXBookmark(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return h === "x.com" || h === "twitter.com" || h.endsWith(".x.com") || h.endsWith(".twitter.com");
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchXTitle(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    
+    const res = await fetch(url, {
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36",
+        "Accept": "text/html",
+      },
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      console.log("fetchXTitle: Response not OK", res.status);
+      return null;
+    }
+
+    const html = await res.text();
+    const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (!match) {
+      console.log("fetchXTitle: No title tag found");
+      return null;
+    }
+
+    const title = match[1]
+      .replace(/\s+/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .trim();
+
+    // Reject invalid titles
+    if (!title || 
+        title.toLowerCase().includes("login") || 
+        title === "X" || 
+        title.toLowerCase() === "twitter" ||
+        title.length < 3) {
+      console.log("fetchXTitle: Title rejected as invalid:", title);
+      return null;
+    }
+
+    console.log("fetchXTitle: Successfully extracted title:", title.substring(0, 100));
+    return title;
+  } catch (error) {
+    console.log("fetchXTitle: Error fetching title", error);
+    return null;
+  }
+}

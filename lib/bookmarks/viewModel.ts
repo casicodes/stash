@@ -16,6 +16,16 @@ export type BookmarkViewModel = {
   snippetSourceUrl: string | null;
 };
 
+function isXBookmark(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.toLowerCase();
+    return hostname === "x.com" || hostname === "twitter.com" || hostname.endsWith(".x.com") || hostname.endsWith(".twitter.com");
+  } catch {
+    return false;
+  }
+}
+
 export function bookmarkViewModel(bookmark: Bookmark): BookmarkViewModel {
   const isTextNote = bookmark.url.startsWith("note://");
   const isImageBookmark = bookmark.tags?.includes("images") ?? false;
@@ -54,8 +64,15 @@ export function bookmarkViewModel(bookmark: Bookmark): BookmarkViewModel {
         ? bookmark.notes
         : bookmark.url;
   } else {
-    primaryText = bookmark.title ?? bookmark.url;
-    secondaryText = bookmark.title ? bookmark.url : null;
+    const isX = isXBookmark(bookmark.url);
+    if (isX) {
+      // For X bookmarks, always show title as primary and URL as secondary below
+      primaryText = bookmark.title ?? bookmark.url;
+      secondaryText = bookmark.url;
+    } else {
+      primaryText = bookmark.title ?? bookmark.url;
+      secondaryText = bookmark.title ? bookmark.url : null;
+    }
   }
 
   // Determine icon URL

@@ -120,8 +120,8 @@ async function saveBookmark(url, notes = null, clientTitle = null) {
   }
 }
 
-// This function runs in the page context to extract LinkedIn page title from <title> tag
-function extractLinkedInTitle() {
+// This function runs in the page context to extract page title from <title> tag
+function extractPageTitle() {
   try {
     const titleTag = document.querySelector("head title");
     if (titleTag) {
@@ -132,22 +132,27 @@ function extractLinkedInTitle() {
     }
     return document.title || null;
   } catch (error) {
-    console.error("Shelf: Failed to extract LinkedIn title", error);
+    console.error("Shelf: Failed to extract page title", error);
     return null;
   }
 }
 
-// Extract title from LinkedIn page if needed
+// Extract title from page title tag (for LinkedIn and X)
 async function getPageTitle(tab) {
   try {
     const url = new URL(tab.url);
     const isLinkedIn =
       url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com");
+    const isX =
+      url.hostname === "x.com" ||
+      url.hostname === "twitter.com" ||
+      url.hostname.endsWith(".x.com") ||
+      url.hostname.endsWith(".twitter.com");
 
-    if (isLinkedIn) {
+    if (isLinkedIn || isX) {
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: extractLinkedInTitle,
+        func: extractPageTitle,
       });
       if (results && results[0]?.result) {
         return results[0].result;
