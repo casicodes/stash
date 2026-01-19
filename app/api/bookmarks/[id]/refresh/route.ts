@@ -82,16 +82,23 @@ export async function POST(
     titleToUpdate = metadata.title;
   }
 
+  // Don't update title to null - keep existing if we couldn't get a better one
+  const updateData: any = {
+    description: metadata?.description ?? null,
+    site_name: metadata?.siteName ?? null,
+    image_url: metadata?.imageUrl ?? null,
+    content_text: metadata?.contentText ?? null,
+  };
+  
+  // Only update title if we have a valid one
+  if (titleToUpdate) {
+    updateData.title = titleToUpdate;
+  }
+
   // Update bookmark with metadata (handle null metadata for X bookmarks)
   const { error: updateErr } = await supabase
     .from("bookmarks")
-    .update({
-      title: titleToUpdate,
-      description: metadata?.description ?? null,
-      site_name: metadata?.siteName ?? null,
-      image_url: metadata?.imageUrl ?? null,
-      content_text: metadata?.contentText ?? null,
-    })
+    .update(updateData)
     .eq("id", id);
 
   if (updateErr) {

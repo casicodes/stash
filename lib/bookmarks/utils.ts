@@ -111,3 +111,22 @@ export function extractSourceUrl(notes: string | null): string | null {
   const sourceMatch = notes.match(/_Source:\s*\[[^\]]+\]\(([^)]+)\)_/);
   return sourceMatch ? sourceMatch[1] : null;
 }
+
+/**
+ * Normalizes source link in markdown to show full URL as link text.
+ * Converts _Source: [hostname](url)_ to _Source: [url](url)_
+ */
+export function normalizeSourceLink(notes: string | null): string | null {
+  if (!notes) return notes;
+  // Replace _Source: [hostname](url)_ with _Source: [url](url)_
+  return notes.replace(
+    /_Source:\s*\[([^\]]+)\]\(([^)]+)\)_/g,
+    (match, linkText, url) => {
+      // Only replace if linkText is different from url (i.e., it's just hostname)
+      if (linkText !== url) {
+        return `_Source: [${url}](${url})_`;
+      }
+      return match;
+    }
+  );
+}

@@ -10,12 +10,17 @@ export type TimeCategory = {
 export function categorizeBookmarksByTime(bookmarks: Bookmark[]): TimeCategory[] {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const currentYear = now.getFullYear();
 
   const categories: TimeCategory[] = [];
   const todayBookmarks: Bookmark[] = [];
+  const yesterdayBookmarks: Bookmark[] = [];
+  const previous7DaysBookmarks: Bookmark[] = [];
   const previous30DaysBookmarks: Bookmark[] = [];
   const yearBookmarksMap = new Map<number, Bookmark[]>();
 
@@ -32,8 +37,16 @@ export function categorizeBookmarksByTime(bookmarks: Bookmark[]): TimeCategory[]
     if (bookmarkDateOnly.getTime() === today.getTime()) {
       todayBookmarks.push(bookmark);
     } 
-    // Check if bookmark is from previous 30 days (but not today)
-    else if (bookmarkDateOnly >= thirtyDaysAgo && bookmarkDateOnly < today) {
+    // Check if bookmark is from yesterday
+    else if (bookmarkDateOnly.getTime() === yesterday.getTime()) {
+      yesterdayBookmarks.push(bookmark);
+    }
+    // Check if bookmark is from previous 7 days (but not today or yesterday)
+    else if (bookmarkDateOnly >= sevenDaysAgo && bookmarkDateOnly < yesterday) {
+      previous7DaysBookmarks.push(bookmark);
+    }
+    // Check if bookmark is from previous 30 days (but not in previous 7 days, today, or yesterday)
+    else if (bookmarkDateOnly >= thirtyDaysAgo && bookmarkDateOnly < sevenDaysAgo) {
       previous30DaysBookmarks.push(bookmark);
     } 
     // Everything else goes into year categories
@@ -55,6 +68,26 @@ export function categorizeBookmarksByTime(bookmarks: Bookmark[]): TimeCategory[]
     });
   }
 
+  // Add "Yesterday" category if it has bookmarks
+  if (yesterdayBookmarks.length > 0) {
+    categories.push({
+      id: "yesterday",
+      label: "Yesterday",
+      bookmarks: yesterdayBookmarks,
+      defaultExpanded: true,
+    });
+  }
+
+  // Add "Previous 7 days" category if it has bookmarks
+  if (previous7DaysBookmarks.length > 0) {
+    categories.push({
+      id: "previous-7-days",
+      label: "Previous 7 days",
+      bookmarks: previous7DaysBookmarks,
+      defaultExpanded: true,
+    });
+  }
+
   // Add "Previous 30 days" category if it has bookmarks
   if (previous30DaysBookmarks.length > 0) {
     categories.push({
@@ -71,7 +104,7 @@ export function categorizeBookmarksByTime(bookmarks: Bookmark[]): TimeCategory[]
     const yearBookmarks = yearBookmarksMap.get(year)!;
     categories.push({
       id: `year-${year}`,
-      label: year.toString(),
+      label: `Year ${year}`,
       bookmarks: yearBookmarks,
       defaultExpanded: false, // All year sections collapsed by default
     });
