@@ -16,6 +16,7 @@ type BookmarkListProps = {
   newBookmarkIds: Set<string>;
   onRemoveNewTag: (id: string) => void;
   searchQuery?: string;
+  isSearching?: boolean;
 };
 
 export function BookmarkList({
@@ -25,6 +26,7 @@ export function BookmarkList({
   newBookmarkIds,
   onRemoveNewTag,
   searchQuery,
+  isSearching = false,
 }: BookmarkListProps) {
   const { isInstalled } = useExtensionInstalled();
 
@@ -33,6 +35,17 @@ export function BookmarkList({
     () => categorizeBookmarksByTime(bookmarks),
     [bookmarks]
   );
+
+  // Show searching state with shimmer
+  if (isSearching && searchQuery && searchQuery.trim()) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <p className="text-neutral-500 text-shimmer">
+          Searching...
+        </p>
+      </div>
+    );
+  }
 
   if (bookmarks.length === 0) {
     // Show search-specific empty state if there's a search query

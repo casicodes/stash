@@ -90,7 +90,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     },
     [deleteBookmark, undoDelete, confirmDelete]
   );
-  const { query, setQuery, results: searchResults, clearSearch } = useSearch();
+  const { query, setQuery, results: searchResults, isLoading: isSearching, clearSearch } = useSearch();
   const { isInstalled } = useExtensionInstalled();
 
   // Keyboard shortcuts
@@ -179,6 +179,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
               searchValue={query}
               onSearchChange={setQuery}
               onClearSearch={clearSearch}
+              isLoading={isSearching}
             />
             <button
               type="button"
@@ -250,6 +251,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
           newBookmarkIds={newBookmarkIds}
           onRemoveNewTag={removeNewTag}
           searchQuery={query}
+          isSearching={isSearching}
         />
       </div>
 

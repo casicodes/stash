@@ -167,15 +167,15 @@ export default function ExtensionCallbackPage() {
             />
           </svg>
         </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">
+        <h1 className="mt-6 text-2xl font-medium">
           Connected to Shelf
         </h1>
-        <p className="mt-2 text-sm text-zinc-600">
+        <p className="mt-2 text-sm text-neutral-500">
           You can close this tab and return to the extension.
         </p>
         <button
           onClick={() => window.close()}
-          className="mt-6 rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white"
+          className="w-full h-12 rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 text-white disabled:opacity-50 active:scale-[0.97] flex items-center justify-center relative overflow-hidden"
         >
           Close tab
         </button>
@@ -185,16 +185,16 @@ export default function ExtensionCallbackPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="text-2xl font-medium">
         Connect extension
       </h1>
-      <p className="mt-2 text-sm text-zinc-600">
-        Sign in to connect the Shelf browser extension to your account.
+      <p className="mt-1 text-neutral-500">
+        Connect the Shelf browser extension to your account.
       </p>
 
-      <form onSubmit={onSubmit} className="mt-8 space-y-3">
+      <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-lg border border-zinc-200 px-3 py-3 outline-none focus:border-zinc-400"
           placeholder="Email"
           type="email"
           value={email}
@@ -203,7 +203,7 @@ export default function ExtensionCallbackPage() {
           required
         />
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+          className="w-full rounded-lg border border-zinc-200 px-3 py-3 outline-none focus:border-zinc-400"
           placeholder="Password"
           type="password"
           value={password}
@@ -214,8 +214,9 @@ export default function ExtensionCallbackPage() {
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
+       
         <button
-          className="w-full rounded-lg bg-ink px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="w-full h-12 rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 text-white disabled:opacity-50 active:scale-[0.97] flex items-center justify-center relative overflow-hidden"
           type="submit"
           disabled={isPending}
         >
@@ -224,9 +225,9 @@ export default function ExtensionCallbackPage() {
       </form>
 
       <p className="mt-6 text-center text-sm text-zinc-600">
-        Don&apos;t have an account?{" "}
-        <Link className="text-zinc-900 hover:underline" href="/auth/sign-up">
-          Sign up
+       
+        <Link className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2 transition active:scale-[0.97]" href="/auth/sign-up">
+        Don&apos;t have an account?{" "}Sign up
         </Link>
       </p>
     </main>

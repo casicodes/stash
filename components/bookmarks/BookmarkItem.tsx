@@ -19,6 +19,7 @@ type BookmarkItemProps = {
   ) => Promise<{ bookmark?: Bookmark; error?: string }>;
   isNew?: boolean;
   onRemoveNewTag: (id: string) => void;
+  isFirst?: boolean;
 };
 
 export function BookmarkItem({
@@ -27,6 +28,7 @@ export function BookmarkItem({
   onRename,
   isNew = false,
   onRemoveNewTag,
+  isFirst = false,
 }: BookmarkItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -169,7 +171,7 @@ export function BookmarkItem({
                     viewModel={vm}
                     showNewTag={showNewTag}
                   />
-                  <BookmarkMainContent bookmark={bookmark} viewModel={vm} />
+                  <BookmarkMainContent bookmark={bookmark} viewModel={vm} isFirst={isFirst} />
                 </button>
               }
             />

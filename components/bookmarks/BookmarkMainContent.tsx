@@ -5,11 +5,13 @@ import type { BookmarkViewModel } from "@/lib/bookmarks/viewModel";
 type BookmarkMainContentProps = {
   viewModel: BookmarkViewModel;
   bookmark: { url: string; notes: string | null };
+  isFirst?: boolean;
 };
 
 export function BookmarkMainContent({
   viewModel,
   bookmark,
+  isFirst = false,
 }: BookmarkMainContentProps) {
   const { isLoading, isTextNote, primaryText, secondaryText } = viewModel;
 

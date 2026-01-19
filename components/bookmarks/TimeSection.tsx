@@ -51,7 +51,7 @@ export function TimeSection({
       </button>
       {isExpanded && (
         <ul className="divide-y divide-neutral-100/50">
-          {category.bookmarks.map((bookmark) => (
+          {category.bookmarks.map((bookmark, index) => (
             <BookmarkItem
               key={bookmark.id}
               bookmark={bookmark}
@@ -59,6 +59,7 @@ export function TimeSection({
               onRename={onRename}
               isNew={newBookmarkIds.has(bookmark.id)}
               onRemoveNewTag={onRemoveNewTag}
+              isFirst={isFirst && index === 0}
             />
           ))}
         </ul>

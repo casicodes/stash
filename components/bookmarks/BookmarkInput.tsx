@@ -6,10 +6,11 @@ type BookmarkInputProps = {
   searchValue: string;
   onSearchChange: (value: string) => void;
   onClearSearch?: () => void;
+  isLoading?: boolean;
 };
 
 export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
-  function BookmarkInput({ searchValue, onSearchChange, onClearSearch }, ref) {
+  function BookmarkInput({ searchValue, onSearchChange, onClearSearch, isLoading = false }, ref) {
     return (
       <form className="w-full" onSubmit={(e) => e.preventDefault()}>
         <div className="flex items-center gap-2 rounded-md ring-1 ring-neutral-200 shadow-sm focus-within:shadow focus-within:ring-neutral-300 px-2 py-0.5 transition-shadow">
@@ -25,7 +26,9 @@ export const BookmarkInput = forwardRef<HTMLInputElement, BookmarkInputProps>(
           </svg>
           <input
             ref={ref}
-            className="h-7 text-sm w-full bg-transparent outline-none placeholder:text-neutral-400"
+            className={`h-7 text-sm w-full bg-transparent outline-none placeholder:text-neutral-400 ${
+              isLoading && searchValue.trim() ? "text-shimmer" : ""
+            }`}
             placeholder="Search"
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
