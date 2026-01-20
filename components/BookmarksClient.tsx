@@ -200,16 +200,6 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
             </button>
           </div>
           <div className="flex items-center gap-4">
-            {!isInstalled && (
-              <a
-                href="https://chrome.google.com/webstore/detail/shelf-save-bookmarks/gkccnmfilmkmpofmadleleeninlfblmd"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-neutral-500 hover:text-neutral-900 underline underline-offset-2 transition active:scale-[0.97]"
-              >
-                Get extension
-              </a>
-            )}
             <button
               className="w-[55px] text-neutral-500 hover:text-neutral-900 underline underline-offset-2 transition active:scale-[0.97] disabled:opacity-50"
               type="button"

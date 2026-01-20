@@ -9,7 +9,7 @@ const AUTH_CALLBACK_URL = `${SHELF_URL}/auth/extension-callback`;
 // Context Menu Setup
 // =============================================================================
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   // Save current page
   chrome.contextMenus.create({
     id: "save-page",
@@ -37,6 +37,26 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "Add image to Shelf",
     contexts: ["image"],
   });
+
+  // Inject marker into all existing Shelf tabs
+  try {
+    const tabs = await chrome.tabs.query({ url: "https://createshelf.vercel.app/*" });
+    for (const tab of tabs) {
+      if (tab.id) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ["marker.js"],
+          });
+        } catch (error) {
+          // Ignore errors (e.g., if tab is not accessible)
+          console.log("Shelf: Could not inject marker into tab", tab.id, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Shelf: Error injecting marker into existing tabs", error);
+  }
 });
 
 // Extract title from page title tag (for LinkedIn and X)

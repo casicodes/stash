@@ -13,7 +13,12 @@ export function useExtensionInstalled() {
     // Check if extension marker exists (set by content script)
     const checkMarker = () => {
       const marker = (window as any).__SHELF_EXTENSION_INSTALLED;
-      if (marker) {
+      return !!marker;
+    };
+
+    // Update state if marker is found
+    const updateIfInstalled = () => {
+      if (checkMarker()) {
         setIsInstalled(true);
         return true;
       }
@@ -21,9 +26,7 @@ export function useExtensionInstalled() {
     };
 
     // Check immediately
-    if (checkMarker()) {
-      return;
-    }
+    updateIfInstalled();
 
     let interval: NodeJS.Timeout | null = null;
 
@@ -32,20 +35,36 @@ export function useExtensionInstalled() {
       setIsInstalled(true);
       if (interval) {
         clearInterval(interval);
+        interval = null;
       }
     };
 
     window.addEventListener("shelfExtensionInstalled", handleExtensionInstalled);
 
-    // Also check periodically in case extension loads after page load
+    // Check periodically in case extension loads after page load
+    // Use shorter interval for faster detection
     interval = setInterval(() => {
-      if (checkMarker()) {
-        if (interval) {
-          clearInterval(interval);
-          interval = null;
-        }
+      if (updateIfInstalled() && interval) {
+        clearInterval(interval);
+        interval = null;
       }
-    }, 500);
+    }, 200);
+
+    // Also check when tab becomes visible (user might have installed extension in another tab)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        updateIfInstalled();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Also check on focus
+    const handleFocus = () => {
+      updateIfInstalled();
+    };
+
+    window.addEventListener("focus", handleFocus);
 
     return () => {
       if (interval) {
@@ -55,6 +74,8 @@ export function useExtensionInstalled() {
         "shelfExtensionInstalled",
         handleExtensionInstalled
       );
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 
