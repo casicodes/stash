@@ -20,9 +20,10 @@ function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectedFrom = searchParams.get("redirectedFrom") ?? "/";
+  const emailFromQuery = searchParams.get("email") ?? "";
 
   const supabase = useMemo(() => createClient(), []);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailFromQuery);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [temporarilyShowLastChar, setTemporarilyShowLastChar] = useState(false);
