@@ -74,7 +74,7 @@ export default function SignUpPage() {
         setError(signUpError.message);
         return;
       }
-      router.push("/");
+      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
       router.refresh();
     });
   }
