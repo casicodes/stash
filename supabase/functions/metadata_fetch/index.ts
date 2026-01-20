@@ -13,6 +13,54 @@ function json(resBody: unknown, status = 200) {
   });
 }
 
+function isYouTubeUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return (
+      h === "youtube.com" ||
+      h === "www.youtube.com" ||
+      h === "m.youtube.com" ||
+      h === "youtu.be" ||
+      h.endsWith(".youtube.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function fetchYouTubeMetadata(url: string) {
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 10000);
+
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`;
+    const res = await fetch(oembedUrl, {
+      signal: ctrl.signal,
+      headers: { accept: "application/json" },
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const json = await res.json();
+    if (!json || json.type !== "video") {
+      return null;
+    }
+
+    return {
+      title: json.title ?? null,
+      description: null,
+      siteName: json.provider_name ?? "YouTube",
+      imageUrl: json.thumbnail_url ?? null,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchHtml(url: string) {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 8000);
@@ -69,12 +117,29 @@ export default Deno.serve(async (req) => {
   const isX = isXBookmark(bookmark.url);
   const existingTitle = bookmark.title;
 
-  const html = await fetchHtml(bookmark.url);
-  if (!html) {
-    return json({ ok: true, skipped: true });
+  // For YouTube URLs, try oEmbed API first (most reliable)
+  let meta: { title: string | null; description: string | null; siteName: string | null; imageUrl: string | null };
+  let html: string | null = null;
+  
+  if (isYouTubeUrl(bookmark.url)) {
+    const youtubeMeta = await fetchYouTubeMetadata(bookmark.url);
+    if (youtubeMeta && youtubeMeta.title && youtubeMeta.imageUrl) {
+      meta = youtubeMeta;
+    } else {
+      // Fall back to HTML scraping if oEmbed fails
+      html = await fetchHtml(bookmark.url);
+      if (!html) {
+        return json({ ok: true, skipped: true });
+      }
+      meta = extractMetadata(html, bookmark.url);
+    }
+  } else {
+    html = await fetchHtml(bookmark.url);
+    if (!html) {
+      return json({ ok: true, skipped: true });
+    }
+    meta = extractMetadata(html, bookmark.url);
   }
-
-  const meta = extractMetadata(html, bookmark.url);
   
   if (!meta.title && !meta.imageUrl) {
     console.warn("OG scrape failed for", bookmark.url);
@@ -84,26 +149,28 @@ export default Deno.serve(async (req) => {
   let titleToUpdate: string | null = null;
   if (isX) {
     // Extract title from HTML for X bookmarks (better than OG tags)
-    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    if (titleMatch && titleMatch[1]) {
-      const extractedTitle = titleMatch[1]
-        .replace(/\s+/g, " ")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'")
-        .replace(/&#39;/g, "'")
-        .replace(/&#x27;/g, "'")
-        .trim();
-      
-      // Only use if it's valid (not "X", "login", etc.)
-      if (extractedTitle && 
-          extractedTitle.toLowerCase() !== "x" &&
-          extractedTitle.toLowerCase() !== "twitter" &&
-          !extractedTitle.toLowerCase().includes("login") &&
-          extractedTitle.length >= 3) {
-        titleToUpdate = extractedTitle;
+    if (html) {
+      const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        const extractedTitle = titleMatch[1]
+          .replace(/\s+/g, " ")
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'")
+          .replace(/&#39;/g, "'")
+          .replace(/&#x27;/g, "'")
+          .trim();
+        
+        // Only use if it's valid (not "X", "login", etc.)
+        if (extractedTitle && 
+            extractedTitle.toLowerCase() !== "x" &&
+            extractedTitle.toLowerCase() !== "twitter" &&
+            !extractedTitle.toLowerCase().includes("login") &&
+            extractedTitle.length >= 3) {
+          titleToUpdate = extractedTitle;
+        }
       }
     }
     
@@ -123,8 +190,26 @@ export default Deno.serve(async (req) => {
         titleToUpdate = meta.title;
       }
     }
+  } else if (isYouTubeUrl(bookmark.url)) {
+    // For YouTube: if we got a valid title, use it; otherwise preserve existing or use "YouTube"
+    const isFallbackTitle = meta.title && (
+      meta.title.trim() === "- YouTube" ||
+      meta.title.trim() === "YouTube" ||
+      meta.title.trim() === "Watch on YouTube"
+    );
+    
+    if (meta.title && !isFallbackTitle) {
+      // We successfully got a title, use it
+      titleToUpdate = meta.title;
+    } else if (existingTitle && existingTitle.trim() && existingTitle.trim() !== "- YouTube") {
+      // Preserve existing valid title
+      titleToUpdate = existingTitle.trim();
+    } else {
+      // Last resort: use "YouTube"
+      titleToUpdate = "YouTube";
+    }
   } else {
-    // For non-X bookmarks, use metadata title
+    // For other non-X bookmarks, use metadata title
     titleToUpdate = meta.title;
   }
 

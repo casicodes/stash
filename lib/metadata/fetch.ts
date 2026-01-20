@@ -315,6 +315,15 @@ async function fetchViaMicrolink(url: string): Promise<Metadata | null> {
 }
 
 export async function fetchMetadata(url: string): Promise<Metadata | null> {
+  // For YouTube URLs, use oEmbed API first (most reliable)
+  if (isYouTubeUrl(url)) {
+    const youtubeMeta = await fetchYouTubeMetadata(url);
+    if (youtubeMeta && youtubeMeta.title && youtubeMeta.imageUrl) {
+      return youtubeMeta;
+    }
+    // If oEmbed fails, fall through to other methods
+  }
+
   // Try direct fetch first (faster, no API limits)
   const direct = await fetchDirect(url);
   // Return direct result if we got metadata (even without title, content_text is valuable)
@@ -326,12 +335,63 @@ export async function fetchMetadata(url: string): Promise<Metadata | null> {
   return fetchViaMicrolink(url);
 }
 
+export function isYouTubeUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    return (
+      h === "youtube.com" ||
+      h === "www.youtube.com" ||
+      h === "m.youtube.com" ||
+      h === "youtu.be" ||
+      h.endsWith(".youtube.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function isXBookmark(url: string): boolean {
   try {
     const h = new URL(url).hostname.toLowerCase();
     return h === "x.com" || h === "twitter.com" || h.endsWith(".x.com") || h.endsWith(".twitter.com");
   } catch {
     return false;
+  }
+}
+
+async function fetchYouTubeMetadata(url: string): Promise<Metadata | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    // YouTube oEmbed API endpoint
+    const oembedUrl = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`;
+    const res = await fetch(oembedUrl, {
+      signal: controller.signal,
+      headers: { accept: "application/json" },
+    });
+
+    if (!res.ok) {
+      // oEmbed might return 403 for private/unlisted videos, fall back to other methods
+      return null;
+    }
+
+    const json = await res.json();
+    if (!json || json.type !== "video") {
+      return null;
+    }
+
+    return {
+      title: json.title ?? null,
+      description: null, // oEmbed doesn't provide description
+      siteName: json.provider_name ?? "YouTube",
+      imageUrl: json.thumbnail_url ?? null,
+      contentText: null, // oEmbed doesn't provide content text
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
