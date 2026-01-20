@@ -65,8 +65,8 @@ export function BookmarkList({
         <h3 className="mb-2 font-medium text-neutral-800">No bookmarks yet</h3>
         <p className="mb-6 max-w-sm text-sm text-neutral-500">
           {isInstalled
-            ? ""
-            : "Paste a URL above to add your first bookmark, or install the browser extension to save pages with one click."}
+            ? "Click the + button to add a URL, or use the browser extension to save pages, links, and text as you browse."
+            : "Add your first bookmark using the + button, or install the browser extension to save pages with one click."}
         </p>
         {!isInstalled && (
           <a
