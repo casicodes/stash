@@ -54,6 +54,9 @@ export function useBookmarks(initial: Bookmark[]) {
     Map<string, { bookmark: Bookmark; index: number }>
   >(new Map());
 
+  // Track which deletes are currently being confirmed to prevent duplicate calls
+  const confirmingDeletes = useRef<Set<string>>(new Set());
+
   // Tracks how many times we attempted metadata refresh per bookmark
   const attemptsById = useRef<Map<string, number>>(new Map());
 
@@ -379,39 +382,60 @@ export function useBookmarks(initial: Bookmark[]) {
   const confirmDelete = useCallback(async (id: string) => {
     const pending = pendingDeletes.current.get(id);
     
-    // If pending doesn't exist, it means undo was called, so skip deletion
+    // If pending doesn't exist, it means undo was called or already confirmed, so skip deletion
     if (!pending) {
       return { success: true };
     }
     
+    // Prevent duplicate confirmDelete calls (e.g., from both onDismiss and onAutoClose)
+    if (confirmingDeletes.current.has(id)) {
+      return { success: true };
+    }
+    
+    confirmingDeletes.current.add(id);
+    
+    // Remove from pending BEFORE API call to prevent duplicate calls
+    // but keep the pending data for error recovery
+    const pendingData = { ...pending };
     pendingDeletes.current.delete(id);
 
-    const { success, error } = await deleteBookmarkApi(id);
+    try {
+      const { success, error } = await deleteBookmarkApi(id);
 
-    if (!success) {
-      // If delete failed, restore the bookmark to the UI and sync with server
-      setItems((prev) => {
-        const newItems = [...prev];
-        const insertIndex = Math.min(pending.index, newItems.length);
-        newItems.splice(insertIndex, 0, pending.bookmark);
-        return deduplicateBookmarks(newItems);
-      });
-      
-      // Fetch from server to ensure we're in sync
-      try {
-        const bookmarks = await fetchBookmarks();
-        setItems(deduplicateBookmarks(bookmarks));
-      } catch {
-        // If fetch fails, we've already restored the item above
+      if (!success) {
+        // If delete failed, restore the bookmark to the UI
+        setItems((prev) => {
+          // Check if bookmark already exists (might have been restored by another call)
+          const exists = prev.some((b) => b.id === id);
+          if (exists) {
+            return prev;
+          }
+          
+          const newItems = [...prev];
+          const insertIndex = Math.min(pendingData.index, newItems.length);
+          newItems.splice(insertIndex, 0, pendingData.bookmark);
+          return deduplicateBookmarks(newItems);
+        });
+        
+        // Fetch from server to ensure we're in sync
+        try {
+          const bookmarks = await fetchBookmarks();
+          setItems(deduplicateBookmarks(bookmarks));
+        } catch {
+          // If fetch fails, we've already restored the item above
+        }
+        
+        return { success: false, error };
       }
-      
-      return { error };
+
+      // cleanup retry tracking
+      attemptsById.current.delete(id);
+
+      return { success: true };
+    } finally {
+      // Always remove from confirming set, even if there was an error
+      confirmingDeletes.current.delete(id);
     }
-
-    // cleanup retry tracking
-    attemptsById.current.delete(id);
-
-    return { success: true };
   }, []);
 
   const renameBookmark = useCallback(async (id: string, title: string) => {
