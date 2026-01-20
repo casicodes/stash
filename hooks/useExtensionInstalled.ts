@@ -1,34 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export function useExtensionInstalled() {
   const [isInstalled, setIsInstalled] = useState(false);
+
+  const checkMarker = useCallback(() => {
+    if (typeof window === "undefined") return false;
+    const marker = (window as any).__SHELF_EXTENSION_INSTALLED;
+    return !!marker;
+  }, []);
+
+  const updateIfInstalled = useCallback(() => {
+    if (checkMarker()) {
+      setIsInstalled(true);
+      return true;
+    }
+    return false;
+  }, [checkMarker]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    // Check if extension marker exists (set by content script)
-    const checkMarker = () => {
-      const marker = (window as any).__SHELF_EXTENSION_INSTALLED;
-      return !!marker;
-    };
-
-    // Update state if marker is found
-    const updateIfInstalled = () => {
-      if (checkMarker()) {
-        setIsInstalled(true);
-        return true;
-      }
-      return false;
-    };
-
     // Check immediately
-    updateIfInstalled();
+    if (updateIfInstalled()) {
+      return;
+    }
 
     let interval: NodeJS.Timeout | null = null;
+    let checkCount = 0;
+    const maxChecks = 150; // Check for 30 seconds (150 * 200ms)
 
     // Listen for custom event from extension
     const handleExtensionInstalled = () => {
@@ -41,19 +44,43 @@ export function useExtensionInstalled() {
 
     window.addEventListener("shelfExtensionInstalled", handleExtensionInstalled);
 
-    // Check periodically in case extension loads after page load
-    // Use shorter interval for faster detection
+    // Check very frequently at first, then slow down
     interval = setInterval(() => {
+      checkCount++;
+      
       if (updateIfInstalled() && interval) {
+        clearInterval(interval);
+        interval = null;
+        return;
+      }
+
+      // Stop checking after max attempts to avoid infinite polling
+      if (checkCount >= maxChecks && interval) {
         clearInterval(interval);
         interval = null;
       }
     }, 200);
 
-    // Also check when tab becomes visible (user might have installed extension in another tab)
+    // Also check when tab becomes visible
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         updateIfInstalled();
+        // Reset check count when tab becomes visible to keep checking
+        checkCount = 0;
+        if (!interval && !isInstalled) {
+          interval = setInterval(() => {
+            checkCount++;
+            if (updateIfInstalled() && interval) {
+              clearInterval(interval);
+              interval = null;
+              return;
+            }
+            if (checkCount >= maxChecks && interval) {
+              clearInterval(interval);
+              interval = null;
+            }
+          }, 200);
+        }
       }
     };
 
@@ -62,9 +89,35 @@ export function useExtensionInstalled() {
     // Also check on focus
     const handleFocus = () => {
       updateIfInstalled();
+      checkCount = 0;
+      if (!interval && !isInstalled) {
+        interval = setInterval(() => {
+          checkCount++;
+          if (updateIfInstalled() && interval) {
+            clearInterval(interval);
+            interval = null;
+            return;
+          }
+          if (checkCount >= maxChecks && interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+        }, 200);
+      }
     };
 
     window.addEventListener("focus", handleFocus);
+
+    // Check on page load completion
+    const handleLoad = () => {
+      updateIfInstalled();
+    };
+    
+    if (document.readyState === "complete") {
+      handleLoad();
+    } else {
+      window.addEventListener("load", handleLoad);
+    }
 
     return () => {
       if (interval) {
@@ -76,8 +129,9 @@ export function useExtensionInstalled() {
       );
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("load", handleLoad);
     };
-  }, []);
+  }, [updateIfInstalled, isInstalled]);
 
   return { isInstalled };
 }
