@@ -27,13 +27,8 @@ function AuthCallback() {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         
         if (error) {
-          // If there's an error, get email from error context or redirect to sign-in
-          const email = data?.user?.email;
-          if (email) {
-            router.push(`/auth/sign-in?email=${encodeURIComponent(email)}`);
-          } else {
-            router.push("/auth/sign-in");
-          }
+          // If there's an error, redirect to sign-in
+          router.push("/auth/sign-in");
           return;
         }
 
