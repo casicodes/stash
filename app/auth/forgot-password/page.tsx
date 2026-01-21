@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,6 +22,35 @@ export default function ForgotPasswordPage() {
       setError(
         "Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local."
       );
+      return;
+    }
+    startTransition(async () => {
+      const redirectTo = `${window.location.origin}/auth/reset-password`;
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo,
+        }
+      );
+      if (resetError) {
+        setError(resetError.message);
+        return;
+      }
+      setStatus("sent");
+    });
+  }
+
+  function onResend(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!supabase) {
+      setError(
+        "Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local."
+      );
+      return;
+    }
+    if (!email) {
+      setError("Please enter your email address.");
       return;
     }
     startTransition(async () => {
@@ -73,13 +103,55 @@ export default function ForgotPasswordPage() {
     );
   }
 
+  if (status === "sent") {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
+        <Image
+          alt="Shelf logo"
+          className="mb-6 rounded-xl"
+          height={40}
+          priority
+          src="/icon48.png"
+          width={40}
+        />
+        <h1 className="text-2xl font-medium">Email sent</h1>
+        <p className="mt-1 text-neutral-500">
+          Check your email and open the link to continue.
+        </p>
+
+        {error && (
+          <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-8 flex flex-col items-start gap-4">
+          <button
+            onClick={onResend}
+            disabled={isPending}
+            className="text-sm text-neutral-500 hover:text-neutral-800 underline underline-offset-2 transition active:scale-[0.97]"
+          >
+            Didn&apos;t receive verification link? Resend it.
+          </button>
+        </div>
+
+        <div className="mt-6 flex items-start text-sm">
+          <Link
+            className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2 transition active:scale-[0.97]"
+            href="/auth/sign-in"
+          >
+            Back to sign in
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
       <h1 className="text-2xl font-medium">Reset password</h1>
       <p className="mt-1 text-neutral-500">
-        {status === "sent"
-          ? "Check your inbox for a reset link."
-          : "We’ll email you a reset link."}
+        We'll email you a reset link.
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
@@ -98,7 +170,7 @@ export default function ForgotPasswordPage() {
         <button
           className="w-full h-12 rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 text-white disabled:opacity-50 active:scale-[0.97] flex items-center justify-center relative overflow-hidden"
           type="submit"
-          disabled={isPending || status === "sent"}
+          disabled={isPending}
         >
           <AnimatePresence>
             {isPending ? (
