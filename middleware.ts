@@ -35,6 +35,7 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/auth");
   const isPublicRoute = pathname === "/privacy";
+  const isApiRoute = pathname.startsWith("/api/");
   const isPublicFile = /\.[a-zA-Z0-9]+$/.test(pathname);
   const isPublicAsset =
     pathname.startsWith("/_next") ||
@@ -43,7 +44,9 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/sitemap") ||
     isPublicFile;
 
-  if (!user && !isAuthRoute && !isPublicRoute && !isPublicAsset) {
+  // Do NOT redirect API routes here; they handle auth themselves.
+  // This is important for extension calls that use Bearer tokens instead of cookies.
+  if (!user && !isAuthRoute && !isPublicRoute && !isPublicAsset && !isApiRoute) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/auth/sign-in";
     redirectUrl.searchParams.set("redirectedFrom", pathname);
