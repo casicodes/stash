@@ -1,0 +1,19 @@
+# Documentation files
+*.md
+!README.md
+
+# Cursor rules and config
+.cursorrules
+.cursor/
+
+# Build artifacts
+shelf-extension.zip
+*.zip
+
+# Setup and config docs
+STORAGE_SETUP.md
+TRADEOFFS.md
+extension/SUBMISSION_CHECKLIST.md
+extension/DISTRIBUTION.md
+extension/QUICKSTART.md
+extension/icons/README.md

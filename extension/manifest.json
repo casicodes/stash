@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Shelf - Save Bookmarks",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Save any page to your Shelf bookmarks with one click",
   "permissions": [
     "activeTab",

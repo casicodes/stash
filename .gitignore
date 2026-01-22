@@ -45,3 +45,7 @@ Thumbs.db
 
 # Trade-offs documentation (personal notes, not for git)
 TRADEOFFS.md
+
+# Build artifacts
+shelf-extension.zip
+*.zip
