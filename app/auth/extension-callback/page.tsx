@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -19,19 +20,35 @@ export default function ExtensionCallbackPage() {
   const extensionReadyRef = useRef(false);
   const handshakeNonceRef = useRef<string | null>(null);
 
-  const sendTokenToExtension = (token: string) => {
+  const sendSessionToExtension = (session: any) => {
     // Only send to same origin, not "*"
     // The extension content script runs in page context and will receive this
-    const message: { type: string; token: string; nonce?: string | null } = {
-      type: "SHELF_AUTH_TOKEN",
-      token,
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("Shelf: Missing Supabase config");
+      return;
+    }
+
+    const sessionData = {
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+      expires_at: session.expires_at ? new Date(session.expires_at).getTime() : null,
+      supabase_url: supabaseUrl,
+      supabase_anon_key: supabaseAnonKey,
     };
-    
+
+    const message: { type: string; session: any; nonce?: string | null } = {
+      type: "SHELF_AUTH_SESSION",
+      session: sessionData,
+    };
+
     // Include nonce if handshake was successful
     if (handshakeNonceRef.current) {
       message.nonce = handshakeNonceRef.current;
     }
-    
+
     window.postMessage(message, window.location.origin);
   };
 
@@ -50,7 +67,7 @@ export default function ExtensionCallbackPage() {
     function handleExtensionReady(event: MessageEvent) {
       // Only accept messages from same origin
       if (event.origin !== window.location.origin) return;
-      
+
       if (event.data?.type === "SHELF_EXTENSION_READY") {
         extensionReadyRef.current = true;
         handshakeNonceRef.current = event.data.nonce || null;
@@ -79,11 +96,10 @@ export default function ExtensionCallbackPage() {
         data: { session },
       } = await client.auth.getSession();
 
-      const token = session?.access_token;
-      if (token) {
+      if (session) {
         // Wait a bit for handshake if extension is loading
         await new Promise((resolve) => setTimeout(resolve, 100));
-        sendTokenToExtension(token);
+        sendSessionToExtension(session);
         setIsConnected(true);
       }
       setIsCheckingAuth(false);
@@ -117,9 +133,8 @@ export default function ExtensionCallbackPage() {
         return;
       }
 
-      const token = data.session?.access_token;
-      if (token) {
-        sendTokenToExtension(token);
+      if (data.session) {
+        sendSessionToExtension(data.session);
         setIsConnected(true);
       }
     });
@@ -185,16 +200,22 @@ export default function ExtensionCallbackPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6">
-      <h1 className="text-2xl font-medium">
-        Connect extension
-      </h1>
+      <Image
+        alt="Shelf logo"
+        className="mb-6 rounded-xl"
+        height={40}
+        priority
+        src="/icon48.png"
+        width={40}
+      />
+      <h1 className="text-2xl font-medium">Your session has expired</h1>
       <p className="mt-1 text-neutral-500">
-        Connect the Shelf browser extension to your account.
+        Please sign in to continue
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-4">
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-3 outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 outline-none focus:border-zinc-400"
           placeholder="Email"
           type="email"
           value={email}
@@ -203,7 +224,7 @@ export default function ExtensionCallbackPage() {
           required
         />
         <input
-          className="w-full rounded-lg border border-zinc-200 px-3 py-3 outline-none focus:border-zinc-400"
+          className="w-full rounded-xl border border-zinc-200 px-3 py-3 outline-none focus:border-zinc-400"
           placeholder="Password"
           type="password"
           value={password}
@@ -214,22 +235,29 @@ export default function ExtensionCallbackPage() {
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-       
         <button
           className="w-full h-12 rounded-xl bg-neutral-800 hover:bg-neutral-700 transition px-3 text-white disabled:opacity-50 active:scale-[0.97] flex items-center justify-center relative overflow-hidden"
           type="submit"
           disabled={isPending}
         >
-          {isPending ? "Connecting..." : "Connect extension"}
+          {isPending ? "Signing in..." : "Sign in"}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-600">
-       
-        <Link className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2 transition active:scale-[0.97]" href="/auth/sign-up">
-        Don&apos;t have an account?{" "}Sign up
+      <div className="mt-6 flex items-center justify-between text-sm">
+        <Link
+          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2 transition active:scale-[0.97]"
+          href="/auth/forgot-password"
+        >
+          Forgot password
         </Link>
-      </p>
+        <Link
+          className="text-neutral-500 hover:text-neutral-800 underline underline-offset-2 transition active:scale-[0.97]"
+          href="/auth/sign-up"
+        >
+          Create account
+        </Link>
+      </div>
     </main>
   );
 }

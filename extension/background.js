@@ -563,10 +563,96 @@ function getFormattedSelection(originalPlainText) {
 // Pending save data
 let pendingSave = null;
 
-// Get token
-async function getToken() {
-  const result = await chrome.storage.local.get(["shelf_token"]);
-  return result.shelf_token || null;
+// Get session (access_token, refresh_token, expires_at, supabase config)
+async function getSession() {
+  const result = await chrome.storage.local.get(["shelf_session"]);
+  return result.shelf_session || null;
+}
+
+// Refresh access token using refresh token
+async function refreshToken() {
+  const session = await getSession();
+  if (!session?.refresh_token || !session?.supabase_url || !session?.supabase_anon_key) {
+    throw new Error("No refresh token or Supabase config available");
+  }
+
+  try {
+    const response = await fetch(
+      `${session.supabase_url}/auth/v1/token?grant_type=refresh_token`,
+      {
+        method: "POST",
+        headers: {
+          "apikey": session.supabase_anon_key,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: session.refresh_token }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "Unknown error");
+      console.error("Shelf: Refresh token failed", response.status, errorText);
+      throw new Error(`Refresh failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const newSession = {
+      ...session,
+      access_token: data.access_token,
+      refresh_token: data.refresh_token || session.refresh_token, // Keep old if not provided
+      expires_at: data.expires_in 
+        ? Date.now() + (data.expires_in * 1000)
+        : session.expires_at,
+    };
+
+    await chrome.storage.local.set({ shelf_session: newSession });
+    console.log("Shelf: Token refreshed successfully");
+    return newSession;
+  } catch (error) {
+    console.error("Shelf: Refresh token error", error);
+    // Clear session on refresh failure
+    await chrome.storage.local.remove(["shelf_session"]);
+    throw error;
+  }
+}
+
+// Get valid access token, refreshing if needed
+async function getValidAccessToken() {
+  const session = await getSession();
+  
+  // Legacy support: check for old token format
+  if (!session) {
+    const legacyResult = await chrome.storage.local.get(["shelf_token"]);
+    if (legacyResult.shelf_token) {
+      console.warn("Shelf: Found legacy token format, user should reconnect for refresh token support");
+      return legacyResult.shelf_token;
+    }
+    return null;
+  }
+
+  // Check if token expires soon (within 5 minutes)
+  const expiresSoon = session.expires_at && (session.expires_at - Date.now() < 5 * 60 * 1000);
+  
+  if (expiresSoon || !session.expires_at) {
+    // Only refresh if we have refresh token support
+    if (session.refresh_token && session.supabase_url && session.supabase_anon_key) {
+      console.log("Shelf: Token expires soon or no expiry, refreshing...");
+      try {
+        const refreshed = await refreshToken();
+        return refreshed.access_token;
+      } catch (error) {
+        console.error("Shelf: Failed to refresh token proactively", error);
+        // Return current token anyway, let the API call fail and trigger retry logic
+        return session.access_token;
+      }
+    } else {
+      // No refresh support, return current token
+      console.warn("Shelf: No refresh token available, using current token");
+      return session.access_token;
+    }
+  }
+
+  return session.access_token;
 }
 
 // Save bookmark via API
@@ -581,9 +667,10 @@ async function saveBookmark(url, notes, tabId, tags, imageUrl, clientTitle) {
     return;
   }
 
-  const token = await getToken();
-  if (!token) {
-    console.log("Shelf: No token");
+  // Get valid access token, refreshing proactively if needed
+  let accessToken = await getValidAccessToken();
+  if (!accessToken) {
+    console.log("Shelf: No session available");
     chrome.tabs.sendMessage(tabId, {
       type: "SHELF_SAVE_RESULT",
       status: "auth",
@@ -608,14 +695,19 @@ async function saveBookmark(url, notes, tabId, tags, imageUrl, clientTitle) {
       console.log("Shelf: No imageUrl provided");
     }
 
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
+    // Helper to make API call with token
+    const makeApiCall = async (token) => {
+      return await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+    };
+
+    let response = await makeApiCall(accessToken);
 
     let data = {};
     const responseText = await response.text().catch(() => "");
@@ -665,9 +757,46 @@ async function saveBookmark(url, notes, tabId, tags, imageUrl, clientTitle) {
     if (!response.ok) {
       console.error("Shelf: API error", response.status, data);
       if (response.status === 401) {
-        // Token expired or invalid
-        await chrome.storage.local.remove(["shelf_token"]);
-        status = "auth";
+        // Token expired or invalid - try refresh + retry once
+        console.log("Shelf: Got 401, attempting refresh and retry...");
+        try {
+          const refreshed = await refreshToken();
+          // Retry the save with new token
+          response = await makeApiCall(refreshed.access_token);
+          
+          // Parse retry response
+          const retryResponseText = await response.text().catch(() => "");
+          try {
+            data = retryResponseText ? JSON.parse(retryResponseText) : {};
+          } catch (parseError) {
+            console.error("Shelf: Failed to parse retry response", parseError);
+          }
+
+          if (!response.ok) {
+            if (response.status === 401) {
+              // Refresh failed, show auth UI
+              console.error("Shelf: Retry still returned 401, refresh failed");
+              await chrome.storage.local.remove(["shelf_session"]);
+              status = "auth";
+            } else if (
+              data.error?.toLowerCase().includes("duplicate") ||
+              data.error?.toLowerCase().includes("already exists") ||
+              data.error?.toLowerCase().includes("unique")
+            ) {
+              status = "duplicate";
+            } else {
+              status = "error";
+            }
+          } else {
+            // Retry succeeded
+            status = "saved";
+          }
+        } catch (refreshError) {
+          // Refresh failed, show auth UI
+          console.error("Shelf: Refresh token failed on 401", refreshError);
+          await chrome.storage.local.remove(["shelf_session"]);
+          status = "auth";
+        }
       } else if (
         data.error?.toLowerCase().includes("duplicate") ||
         data.error?.toLowerCase().includes("already exists") ||
@@ -753,10 +882,26 @@ async function injectOverlay(tabId) {
 
 // Listen for messages from content script and web pages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "SHELF_AUTH_TOKEN" && message.token) {
-    // Store the token
+  // Handle new session format (access_token, refresh_token, expires_at, supabase config)
+  if (message.type === "SHELF_AUTH_SESSION" && message.session) {
+    // Store the full session
+    chrome.storage.local.set({ shelf_session: message.session }, () => {
+      console.log("Shelf: Session saved successfully");
+
+      // Close the auth tab if it's the sender
+      if (sender.tab?.id) {
+        chrome.tabs.remove(sender.tab.id);
+      }
+    });
+    sendResponse({ success: true });
+  } 
+  // Legacy support: handle old token-only format (for backwards compatibility)
+  else if (message.type === "SHELF_AUTH_TOKEN" && message.token) {
+    // Convert old token format to session format (without refresh token)
+    // User will need to reconnect to get refresh token
+    console.warn("Shelf: Received legacy token format, user should reconnect for refresh token support");
     chrome.storage.local.set({ shelf_token: message.token }, () => {
-      console.log("Shelf: Token saved successfully");
+      console.log("Shelf: Legacy token saved (no refresh support)");
 
       // Close the auth tab if it's the sender
       if (sender.tab?.id) {
@@ -806,8 +951,22 @@ function captureTokenFromPage() {
       return;
     }
     
-    // Handle auth token
-    if (event.data?.type === "SHELF_AUTH_TOKEN" && event.data?.token) {
+    // Handle auth session (new format)
+    if (event.data?.type === "SHELF_AUTH_SESSION" && event.data?.session) {
+      // Validate nonce if provided (optional for backwards compatibility)
+      if (event.data.nonce && event.data.nonce !== nonce) {
+        console.warn("Shelf Extension: Session message nonce mismatch");
+        return;
+      }
+      
+      // Send session to background script
+      chrome.runtime.sendMessage({
+        type: "SHELF_AUTH_SESSION",
+        session: event.data.session,
+      });
+    }
+    // Handle legacy auth token (for backwards compatibility)
+    else if (event.data?.type === "SHELF_AUTH_TOKEN" && event.data?.token) {
       // Validate nonce if provided (optional for backwards compatibility)
       if (event.data.nonce && event.data.nonce !== nonce) {
         console.warn("Shelf Extension: Token message nonce mismatch");
