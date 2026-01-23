@@ -42,7 +42,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     removeNewTag,
   } = useBookmarks(initial);
 
-  const { logout, isLoggingOut } = useAuth();
+  const { logout, isLoggingOut, userEmail } = useAuth();
   const { checkDuplicateUrl } = useBookmarkValidation(items);
 
   // Preload audio files
@@ -184,7 +184,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
             <button
               type="button"
               onClick={() => setAddDialogOpen(true)}
-              className="flex h-[32px] w-[35px] items-center justify-center rounded-lg text-neutral-500 transition ring-1 ring-neutral-200 shadow-xs bg-white hover:bg-neutral-100/80 hover:text-neutral-800 active:scale-[0.97] box-border"
+              className="flex h-[32px] w-[35px] items-center justify-center rounded-md text-neutral-500 transition ring-1 ring-neutral-200 shadow-sm bg-white hover:bg-neutral-100/80 hover:text-neutral-800 active:scale-[0.97] box-border"
               title="Add URL"
               style={{ boxSizing: "border-box" }}
             >
@@ -205,6 +205,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
               type="button"
               onClick={handleSignOut}
               disabled={isLoggingOut}
+              title={userEmail || undefined}
             >
               {isLoggingOut ? (
                 <span className="inline-flex items-center">
