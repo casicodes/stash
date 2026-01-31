@@ -9,6 +9,9 @@ import { TimeSection } from "./TimeSection";
 type BookmarkListProps = {
   bookmarks: Bookmark[];
   onDelete: (id: string) => void;
+  onConfirmDelete: (id: string) => void | Promise<void>;
+  onCancelDelete: () => void;
+  pendingDeleteId: string | null;
   onRename: (
     id: string,
     title: string
@@ -22,6 +25,9 @@ type BookmarkListProps = {
 export function BookmarkList({
   bookmarks,
   onDelete,
+  onConfirmDelete,
+  onCancelDelete,
+  pendingDeleteId,
   onRename,
   newBookmarkIds,
   onRemoveNewTag,
@@ -89,6 +95,9 @@ export function BookmarkList({
           key={category.id}
           category={category}
           onDelete={onDelete}
+          onConfirmDelete={onConfirmDelete}
+          onCancelDelete={onCancelDelete}
+          pendingDeleteId={pendingDeleteId}
           onRename={onRename}
           newBookmarkIds={newBookmarkIds}
           onRemoveNewTag={onRemoveNewTag}

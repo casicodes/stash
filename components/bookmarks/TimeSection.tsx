@@ -8,6 +8,9 @@ import { BookmarkItem } from "./BookmarkItem";
 type TimeSectionProps = {
   category: TimeCategory;
   onDelete: (id: string) => void;
+  onConfirmDelete: (id: string) => void | Promise<void>;
+  onCancelDelete: () => void;
+  pendingDeleteId: string | null;
   onRename: (
     id: string,
     title: string
@@ -20,6 +23,9 @@ type TimeSectionProps = {
 export function TimeSection({
   category,
   onDelete,
+  onConfirmDelete,
+  onCancelDelete,
+  pendingDeleteId,
   onRename,
   newBookmarkIds,
   onRemoveNewTag,
@@ -38,9 +44,8 @@ export function TimeSection({
           {category.label}
         </span>
         <svg
-          className={`h-4 w-4 text-neutral-500 transition-transform duration-200 ${
-            isExpanded ? "rotate-0" : "-rotate-90"
-          }`}
+          className={`h-4 w-4 text-neutral-500 transition-transform duration-200 ${isExpanded ? "rotate-0" : "-rotate-90"
+            }`}
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
@@ -50,12 +55,15 @@ export function TimeSection({
         </svg>
       </button>
       {isExpanded && (
-        <ul className="divide-y divide-neutral-100/50">
+        <ul>
           {category.bookmarks.map((bookmark, index) => (
             <BookmarkItem
               key={bookmark.id}
               bookmark={bookmark}
               onDelete={onDelete}
+              onConfirmDelete={onConfirmDelete}
+              onCancelDelete={onCancelDelete}
+              isConfirmingDelete={pendingDeleteId === bookmark.id}
               onRename={onRename}
               isNew={newBookmarkIds.has(bookmark.id)}
               onRemoveNewTag={onRemoveNewTag}

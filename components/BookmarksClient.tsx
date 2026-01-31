@@ -28,6 +28,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
 
   const [activeFilter, setActiveFilter] = useState<FilterTag>("all");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // Hooks
   const {
@@ -35,7 +36,6 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     addBookmark,
     refreshMetadata,
     deleteBookmark,
-    undoDelete,
     confirmDelete,
     renameBookmark,
     newBookmarkIds,
@@ -52,44 +52,29 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     deleteAudioRef.current.load();
   }, []);
 
-  const handleDelete = useCallback(
-    (id: string) => {
-      if (deleteAudioRef.current) {
-        deleteAudioRef.current.currentTime = 0;
-        deleteAudioRef.current.play().catch(() => {
-          // Ignore errors if audio fails to play
-        });
-      }
+  const handleDelete = useCallback((id: string) => {
+    if (deleteAudioRef.current) {
+      deleteAudioRef.current.currentTime = 0;
+      deleteAudioRef.current.play().catch(() => { });
+    }
+    setPendingDeleteId(id);
+  }, []);
 
-      const { deletedBookmark } = deleteBookmark(id);
-
-      if (deletedBookmark) {
-        const title = deletedBookmark.title || deletedBookmark.url;
-        const displayTitle =
-          title.length > 40 ? title.slice(0, 40) + "..." : title;
-
-        toast(`Deleted "${displayTitle}"`, {
-          action: {
-            label: "Undo",
-            onClick: () => undoDelete(id),
-          },
-          onDismiss: async () => {
-            const { error } = await confirmDelete(id);
-            if (error) {
-              toast.error(`Failed to delete: ${error}`);
-            }
-          },
-          onAutoClose: async () => {
-            const { error } = await confirmDelete(id);
-            if (error) {
-              toast.error(`Failed to delete: ${error}`);
-            }
-          },
-        });
+  const handleConfirmDelete = useCallback(
+    async (id: string) => {
+      setPendingDeleteId(null);
+      deleteBookmark(id);
+      const { error } = await confirmDelete(id);
+      if (error) {
+        toast.error(`Failed to delete: ${error}`);
       }
     },
-    [deleteBookmark, undoDelete, confirmDelete]
+    [deleteBookmark, confirmDelete]
   );
+
+  const handleCancelDelete = useCallback(() => {
+    setPendingDeleteId(null);
+  }, []);
   const { query, setQuery, results: searchResults, isLoading: isSearching, clearSearch } = useSearch();
   const { isInstalled } = useExtensionInstalled();
 
@@ -238,6 +223,9 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
         <BookmarkList
           bookmarks={displayed}
           onDelete={handleDelete}
+          onConfirmDelete={handleConfirmDelete}
+          onCancelDelete={handleCancelDelete}
+          pendingDeleteId={pendingDeleteId}
           onRename={renameBookmark}
           newBookmarkIds={newBookmarkIds}
           onRemoveNewTag={removeNewTag}
