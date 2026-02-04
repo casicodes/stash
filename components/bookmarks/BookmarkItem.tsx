@@ -11,6 +11,17 @@ import { BookmarkMainContent } from "./BookmarkMainContent";
 import { RenameDialog } from "./RenameDialog";
 import { NoteDialog } from "./NoteDialog";
 
+// Confirm delete background animation
+const confirmBgTransition = {
+  duration: 0.1,
+  ease: "easeOut" as const,
+};
+
+const confirmBgInitial = {
+  scale: 0.9,
+  opacity: 0,
+};
+
 type BookmarkItemProps = {
   bookmark: Bookmark;
   onDelete: (id: string) => void;
@@ -255,14 +266,10 @@ export function BookmarkItem({
               <motion.div
                 key="confirm-bg"
                 className="absolute inset-0 bg-red-50/90 rounded-xl -z-10"
-                initial={{ scale: 0.8, opacity: 0 }}
+                initial={confirmBgInitial}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{
-                  type: "spring",
-                  visualDuration: 0.15,
-                  bounce: 0.3
-                }}
+                transition={confirmBgTransition}
               />
             )}
           </AnimatePresence>
@@ -322,14 +329,10 @@ export function BookmarkItem({
             <motion.div
               key="confirm-bg"
               className="absolute inset-0 bg-red-50/90 rounded-xl -z-10"
-              initial={{ scale: 0.8, opacity: 0 }}
+              initial={confirmBgInitial}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{
-                type: "spring",
-                visualDuration: 0.15,
-                bounce: 0.3
-              }}
+              transition={confirmBgTransition}
             />
           )}
         </AnimatePresence>

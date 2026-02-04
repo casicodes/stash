@@ -241,6 +241,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
         onAdd={handleAddBookmark}
         checkDuplicateUrl={checkDuplicateUrl}
       />
+
     </div>
   );
 }
