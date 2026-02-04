@@ -105,13 +105,17 @@ export async function searchBookmarks(
 
 export async function deleteBookmark(
   id: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; status?: number }> {
   const response = await httpClient<unknown>(`/api/bookmarks/${id}`, {
     method: "DELETE",
   });
 
   if (!response.success) {
-    return { success: false, error: response.error.message };
+    return {
+      success: false,
+      error: response.error.message,
+      status: response.error.status,
+    };
   }
 
   return { success: true };

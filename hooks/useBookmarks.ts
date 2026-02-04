@@ -36,7 +36,7 @@ function isTemp(bookmark: Bookmark) {
 function hasMeta(bookmark: Bookmark) {
   const hasTitle = Boolean(bookmark.title && bookmark.title.trim().length > 0);
   const hasOgImage = Boolean(
-    bookmark.image_url && bookmark.image_url.trim().length > 0,
+    bookmark.image_url && bookmark.image_url.trim().length > 0
   );
   // If you want title-only to be acceptable, change this to `hasTitle`
   return hasTitle && hasOgImage;
@@ -47,6 +47,11 @@ export function useBookmarks(initial: Bookmark[]) {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [newBookmarkIds, setNewBookmarkIds] = useState<Set<string>>(new Set());
   const itemsRef = useRef<Bookmark[]>(deduplicateBookmarks(initial));
+  // Tracks optimistic creates that were deleted before the server responded.
+  // If the POST eventually succeeds, we best-effort delete the created bookmark server-side.
+  const cancelledTempCreates = useRef<Set<string>>(new Set());
+  // Tracks IDs that have been deleted so we don't try to refresh their metadata.
+  const deletedIds = useRef<Set<string>>(new Set());
 
   // Track when bookmarks were marked as new (timestamp)
   const newBookmarkTimestamps = useRef<Map<string, number>>(new Map());
@@ -66,7 +71,7 @@ export function useBookmarks(initial: Bookmark[]) {
 
   // Track known bookmark IDs to detect new ones (initialized with initial bookmarks)
   const knownBookmarkIds = useRef<Set<string>>(
-    new Set(initial.map((b) => b.id)),
+    new Set(initial.map((b) => b.id))
   );
 
   // Track if we've completed the initial load
@@ -158,7 +163,7 @@ export function useBookmarks(initial: Bookmark[]) {
         () => {
           // When a new bookmark is inserted, refresh the list
           refreshBookmarks();
-        },
+        }
       )
       .subscribe();
 
@@ -205,6 +210,8 @@ export function useBookmarks(initial: Bookmark[]) {
     const candidates = items.filter((b) => {
       if (isNote(b) || isTemp(b)) return false;
       if (hasMeta(b)) return false;
+      // Skip items that have been deleted (avoids 404 errors during async operations).
+      if (deletedIds.current.has(b.id)) return false;
 
       // Skip X bookmarks that already have a valid title (not fallback titles)
       const isUrlBasedTitle =
@@ -239,13 +246,15 @@ export function useBookmarks(initial: Bookmark[]) {
         // Refresh sequentially to avoid hammering your API
         for (const b of candidates) {
           if (cancelled) return;
+          // Skip if deleted while we were iterating.
+          if (deletedIds.current.has(b.id)) continue;
 
           setRefreshingId(b.id);
 
           // increment attempt count
           attemptsById.current.set(
             b.id,
-            (attemptsById.current.get(b.id) ?? 0) + 1,
+            (attemptsById.current.get(b.id) ?? 0) + 1
           );
 
           try {
@@ -257,8 +266,8 @@ export function useBookmarks(initial: Bookmark[]) {
             if (updated) {
               setItems((prev) =>
                 deduplicateBookmarks(
-                  prev.map((x) => (x.id === b.id ? { ...x, ...updated } : x)),
-                ),
+                  prev.map((x) => (x.id === b.id ? { ...x, ...updated } : x))
+                )
               );
 
               // If after update we now have meta, we can stop retrying.
@@ -306,14 +315,28 @@ export function useBookmarks(initial: Bookmark[]) {
 
     if (error) {
       setItems((prev) =>
-        deduplicateBookmarks(prev.filter((b) => b.id !== tempId)),
+        deduplicateBookmarks(prev.filter((b) => b.id !== tempId))
       );
       return { error };
     }
 
     if (bookmark) {
+      // If the user deleted the optimistic temp item before the POST resolved,
+      // do not re-insert it. Also best-effort delete the created bookmark so it
+      // can't "come back" on refresh.
+      if (cancelledTempCreates.current.has(tempId)) {
+        cancelledTempCreates.current.delete(tempId);
+        // Best-effort cleanup (ignore errors; UI is already consistent).
+        try {
+          await deleteBookmarkApi(bookmark.id);
+        } catch {
+          // ignore
+        }
+        return { bookmark };
+      }
+
       setItems((prev) =>
-        deduplicateBookmarks(prev.map((b) => (b.id === tempId ? bookmark : b))),
+        deduplicateBookmarks(prev.map((b) => (b.id === tempId ? bookmark : b)))
       );
 
       // Mark as new bookmark
@@ -326,7 +349,7 @@ export function useBookmarks(initial: Bookmark[]) {
       attemptsById.current.delete(bookmark.id);
     } else {
       setItems((prev) =>
-        deduplicateBookmarks(prev.filter((b) => b.id !== tempId)),
+        deduplicateBookmarks(prev.filter((b) => b.id !== tempId))
       );
       fetchBookmarks()
         .then((bookmarks) => setItems(deduplicateBookmarks(bookmarks)))
@@ -347,8 +370,8 @@ export function useBookmarks(initial: Bookmark[]) {
     if (bookmark) {
       setItems((prev) =>
         deduplicateBookmarks(
-          prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b)),
-        ),
+          prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b))
+        )
       );
     }
 
@@ -356,31 +379,38 @@ export function useBookmarks(initial: Bookmark[]) {
     return { bookmark, error };
   }, []);
 
-  const deleteBookmark = useCallback(
-    (id: string): { deletedBookmark: Bookmark | null } => {
-      const currentItems = itemsRef.current;
-      const index = currentItems.findIndex((b) => b.id === id);
-      const deletedBookmark = index !== -1 ? currentItems[index] : null;
+  const deleteBookmark = useCallback((id: string) => {
+    // If this is an optimistic create, mark it cancelled so we don't resurrect it
+    // when the POST returns.
+    if (id.startsWith("temp-")) {
+      cancelledTempCreates.current.add(id);
+    }
+
+    // Mark as deleted so auto-refresh won't try to refresh its metadata.
+    deletedIds.current.add(id);
+
+    // Capture the deleted bookmark from the current state (avoids stale refs).
+    setItems((prev) => {
+      const index = prev.findIndex((b) => b.id === id);
+      const deletedBookmark = index !== -1 ? prev[index] : null;
 
       if (deletedBookmark) {
-        pendingDeletes.current.set(id, {
-          bookmark: deletedBookmark,
-          index,
-        });
+        pendingDeletes.current.set(id, { bookmark: deletedBookmark, index });
       }
 
-      setItems((prev) => deduplicateBookmarks(prev.filter((b) => b.id !== id)));
-
-      return { deletedBookmark };
-    },
-    [],
-  );
+      return deduplicateBookmarks(prev.filter((b) => b.id !== id));
+    });
+  }, []);
 
   const undoDelete = useCallback((id: string) => {
     const pending = pendingDeletes.current.get(id);
     if (!pending) return;
 
     pendingDeletes.current.delete(id);
+    // Remove from deleted tracking since it's being restored.
+    deletedIds.current.delete(id);
+    // If it was a temp create, remove from cancelled set so it can be saved normally.
+    cancelledTempCreates.current.delete(id);
 
     setItems((prev) => {
       const newItems = [...prev];
@@ -390,63 +420,76 @@ export function useBookmarks(initial: Bookmark[]) {
     });
   }, []);
 
-  const confirmDelete = useCallback(async (id: string) => {
-    const pending = pendingDeletes.current.get(id);
+  const confirmDelete = useCallback(
+    async (id: string) => {
+      const pending = pendingDeletes.current.get(id);
 
-    // Prevent duplicate confirmDelete calls (e.g., from both onDismiss and onAutoClose)
-    if (confirmingDeletes.current.has(id)) {
-      return { success: true };
-    }
-
-    confirmingDeletes.current.add(id);
-
-    // Remove from pending BEFORE API call to prevent duplicate calls
-    // but keep the pending data for error recovery
-    const pendingData = pending ? { ...pending } : null;
-    if (pending) {
-      pendingDeletes.current.delete(id);
-    }
-
-    try {
-      const { success, error } = await deleteBookmarkApi(id);
-
-      if (!success) {
-        if (pendingData) {
-          // If delete failed, restore the bookmark to the UI
-          setItems((prev) => {
-            // Check if bookmark already exists (might have been restored by another call)
-            const exists = prev.some((b) => b.id === id);
-            if (exists) {
-              return prev;
-            }
-
-            const newItems = [...prev];
-            const insertIndex = Math.min(pendingData.index, newItems.length);
-            newItems.splice(insertIndex, 0, pendingData.bookmark);
-            return deduplicateBookmarks(newItems);
-          });
-        }
-
-        // Fetch from server to ensure we're in sync
-        try {
-          const bookmarks = await fetchBookmarks();
-          setItems(deduplicateBookmarks(bookmarks));
-        } catch {
-          // If fetch fails, we've already restored the item above (if available)
-        }
-
-        return { success: false, error };
+      // Prevent duplicate confirmDelete calls (e.g., from both onDismiss and onAutoClose)
+      if (confirmingDeletes.current.has(id)) {
+        return { success: true };
       }
 
-      // cleanup retry tracking
-      attemptsById.current.delete(id);
+      confirmingDeletes.current.add(id);
 
-      return { success: true };
-    } finally {
-      // Always remove from confirming set, even if there was an error
-      confirmingDeletes.current.delete(id);
-    }
-  }, []);
+      // Remove from pending BEFORE API call to prevent duplicate calls
+      // but keep the pending data for error recovery
+      const pendingData = pending ? { ...pending } : null;
+      if (pending) {
+        pendingDeletes.current.delete(id);
+      }
+
+      try {
+        // If we deleted an optimistic temp bookmark, there's nothing to delete server-side.
+        // (If the POST later succeeds, addBookmark() will best-effort clean it up.)
+        if (id.startsWith("temp-")) {
+          cancelledTempCreates.current.delete(id);
+          return { success: true };
+        }
+
+        const { success, error, status } = await deleteBookmarkApi(id);
+
+        // Treat "already deleted / not found" as success to avoid resurrecting items.
+        if (!success && status !== 404) {
+          if (pendingData) {
+            // If delete failed, restore the bookmark to the UI
+            setItems((prev) => {
+              // Check if bookmark already exists (might have been restored by another call)
+              const exists = prev.some((b) => b.id === id);
+              if (exists) {
+                return prev;
+              }
+
+              const newItems = [...prev];
+              const insertIndex = Math.min(pendingData.index, newItems.length);
+              newItems.splice(insertIndex, 0, pendingData.bookmark);
+              return deduplicateBookmarks(newItems);
+            });
+          }
+
+          // Fetch from server to ensure we're in sync
+          try {
+            const bookmarks = await fetchBookmarks();
+            setItems(deduplicateBookmarks(bookmarks));
+          } catch {
+            // If fetch fails, we've already restored the item above (if available)
+          }
+
+          return { success: false, error };
+        }
+
+        // cleanup retry tracking
+        attemptsById.current.delete(id);
+        // Clean up deleted tracking (no need to track anymore).
+        deletedIds.current.delete(id);
+
+        return { success: true };
+      } finally {
+        // Always remove from confirming set, even if there was an error
+        confirmingDeletes.current.delete(id);
+      }
+    },
+    [refreshBookmarks]
+  );
 
   const renameBookmark = useCallback(async (id: string, title: string) => {
     const { bookmark, error } = await renameBookmarkApi(id, title);
@@ -454,8 +497,8 @@ export function useBookmarks(initial: Bookmark[]) {
     if (bookmark) {
       setItems((prev) =>
         deduplicateBookmarks(
-          prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b)),
-        ),
+          prev.map((b) => (b.id === id ? { ...b, ...bookmark } : b))
+        )
       );
     }
 

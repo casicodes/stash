@@ -7,7 +7,9 @@ export type TimeCategory = {
   defaultExpanded: boolean;
 };
 
-export function categorizeBookmarksByTime(bookmarks: Bookmark[]): TimeCategory[] {
+export function categorizeBookmarksByTime(
+  bookmarks: Bookmark[]
+): TimeCategory[] {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today);
@@ -36,7 +38,7 @@ export function categorizeBookmarksByTime(bookmarks: Bookmark[]): TimeCategory[]
     // Check if bookmark is from today (date only, ignoring time)
     if (bookmarkDateOnly.getTime() === today.getTime()) {
       todayBookmarks.push(bookmark);
-    } 
+    }
     // Check if bookmark is from yesterday
     else if (bookmarkDateOnly.getTime() === yesterday.getTime()) {
       yesterdayBookmarks.push(bookmark);
@@ -46,9 +48,12 @@ export function categorizeBookmarksByTime(bookmarks: Bookmark[]): TimeCategory[]
       previous7DaysBookmarks.push(bookmark);
     }
     // Check if bookmark is from previous 30 days (but not in previous 7 days, today, or yesterday)
-    else if (bookmarkDateOnly >= thirtyDaysAgo && bookmarkDateOnly < sevenDaysAgo) {
+    else if (
+      bookmarkDateOnly >= thirtyDaysAgo &&
+      bookmarkDateOnly < sevenDaysAgo
+    ) {
       previous30DaysBookmarks.push(bookmark);
-    } 
+    }
     // Everything else goes into year categories
     else {
       if (!yearBookmarksMap.has(bookmarkYear)) {
@@ -99,7 +104,9 @@ export function categorizeBookmarksByTime(bookmarks: Bookmark[]): TimeCategory[]
   }
 
   // Add year categories (sorted descending, current year first)
-  const years = Array.from(yearBookmarksMap.keys()).sort((a, b) => b - a);
+  // Using toSorted() for immutability - Array.from already creates a new array,
+  // but toSorted() is preferred for consistency and explicit immutability intent
+  const years = Array.from(yearBookmarksMap.keys()).toSorted((a, b) => b - a);
   for (const year of years) {
     const yearBookmarks = yearBookmarksMap.get(year)!;
     categories.push({

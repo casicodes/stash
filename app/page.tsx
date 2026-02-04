@@ -1,5 +1,8 @@
 import BookmarksClient from "@/components/BookmarksClient";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getUser } from "@/lib/supabase/server";
+
+// This page is user-specific (cookie-auth) and should never be statically cached.
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -15,9 +18,8 @@ export default async function HomePage() {
     );
   }
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  // Use cached getUser() for per-request deduplication
+  const user = await getUser();
 
   if (!user) {
     return null;

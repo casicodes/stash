@@ -31,7 +31,7 @@ export async function OPTIONS() {
 // Get user from Bearer token (extension) or cookie auth (web app)
 // Returns both the user and the access token (if Bearer token was used)
 async function getAuthenticatedUser(
-  req: Request,
+  req: Request
 ): Promise<{ user: any; accessToken: string | null } | null> {
   const supabase = await createClient();
   if (!supabase) {
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
   if (!authResult) {
     return NextResponse.json(
       { error: "Unauthorized" },
-      { status: 401, headers: corsHeaders() },
+      { status: 401, headers: corsHeaders() }
     );
   }
 
@@ -75,7 +75,7 @@ export async function GET(req: Request) {
   if (!supabase) {
     return NextResponse.json(
       { error: "Server configuration error" },
-      { status: 500, headers: corsHeaders() },
+      { status: 500, headers: corsHeaders() }
     );
   }
 
@@ -100,7 +100,7 @@ export async function GET(req: Request) {
           created_at,
           archived
         )
-      `,
+      `
       )
       .eq("tag", filterTag)
       .eq("user_id", user.id);
@@ -108,7 +108,7 @@ export async function GET(req: Request) {
     if (error) {
       return NextResponse.json(
         { error: error.message },
-        { status: 500, headers: corsHeaders() },
+        { status: 500, headers: corsHeaders() }
       );
     }
 
@@ -116,9 +116,9 @@ export async function GET(req: Request) {
     const bookmarks = (data ?? [])
       .map((row: any) => ({ ...row.bookmarks, tags: [row.tag] }))
       .filter((b: any) => b && !b.archived)
-      .sort(
+      .toSorted(
         (a: any, b: any) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
     return NextResponse.json({ bookmarks }, { headers: corsHeaders() });
@@ -138,7 +138,7 @@ export async function GET(req: Request) {
       notes,
       created_at,
       bookmark_tags (tag)
-    `,
+    `
     )
     .eq("archived", false)
     .order("created_at", { ascending: false })
@@ -147,7 +147,7 @@ export async function GET(req: Request) {
   if (error) {
     return NextResponse.json(
       { error: error.message },
-      { status: 500, headers: corsHeaders() },
+      { status: 500, headers: corsHeaders() }
     );
   }
 
@@ -168,7 +168,7 @@ export async function POST(req: Request) {
   if (!authResult) {
     return NextResponse.json(
       { error: "Unauthorized" },
-      { status: 401, headers: corsHeaders() },
+      { status: 401, headers: corsHeaders() }
     );
   }
 
@@ -183,7 +183,7 @@ export async function POST(req: Request) {
   if (!supabase) {
     return NextResponse.json(
       { error: "Server configuration error" },
-      { status: 500, headers: corsHeaders() },
+      { status: 500, headers: corsHeaders() }
     );
   }
 
@@ -191,18 +191,18 @@ export async function POST(req: Request) {
   console.log("=== Shelf API POST called ===");
   console.log(
     "Shelf API: Raw request body client_title:",
-    json?.client_title?.substring(0, 100),
+    json?.client_title?.substring(0, 100)
   );
   console.log("Shelf API: client_title exists:", !!json?.client_title);
   console.log("Shelf API: client_title type:", typeof json?.client_title);
   console.log(
     "Shelf API: client_title length:",
-    json?.client_title?.length || 0,
+    json?.client_title?.length || 0
   );
   console.log("Shelf API: Full request body keys:", Object.keys(json || {}));
   console.log(
     "Shelf API: Full request body:",
-    JSON.stringify(json, null, 2).substring(0, 500),
+    JSON.stringify(json, null, 2).substring(0, 500)
   );
 
   const parsed = CreateBookmarkSchema.safeParse(json);
@@ -210,7 +210,7 @@ export async function POST(req: Request) {
     console.error("Shelf: Schema validation failed", parsed.error);
     return NextResponse.json(
       { error: "Invalid payload" },
-      { status: 400, headers: corsHeaders() },
+      { status: 400, headers: corsHeaders() }
     );
   }
 
@@ -229,7 +229,7 @@ export async function POST(req: Request) {
   // For plain text, generate a unique note:// URL and store content in notes
   const noteId = crypto.randomUUID();
   const urlToStore = isTextNote ? `note://${noteId}` : normalized;
-  const notesToStore = isTextNote ? input : (parsed.data.notes ?? null);
+  const notesToStore = isTextNote ? input : parsed.data.notes ?? null;
   const titleToStore = isTextNote ? input.slice(0, 100) : null;
 
   // For URLs, fetch metadata first
@@ -254,7 +254,7 @@ export async function POST(req: Request) {
     // Use the same detection method that's used for tagging
     const bookmarkType = detectBookmarkType(
       normalized || input || urlToStore,
-      isTextNote,
+      isTextNote
     );
     isX = bookmarkType === "x";
     console.log("Shelf API: X detection using detectBookmarkType", {
@@ -303,7 +303,7 @@ export async function POST(req: Request) {
     finalTitle = titleToStore;
     console.log(
       "Shelf API: [TITLE DEBUG] Text note - using titleToStore:",
-      finalTitle,
+      finalTitle
     );
   } else if (isValidClientTitle) {
     // PRIORITY 1: If we have a valid clientTitle, use it immediately (highest priority)
@@ -311,29 +311,29 @@ export async function POST(req: Request) {
     finalTitle = clientTitle.trim();
     console.log(
       "Shelf API: [TITLE DEBUG] Using clientTitle (highest priority):",
-      finalTitle.substring(0, 150),
+      finalTitle.substring(0, 150)
     );
     console.log("Shelf API: [TITLE DEBUG] finalTitle set to:", finalTitle);
     console.log("Shelf API: [TITLE DEBUG] finalTitle type:", typeof finalTitle);
     console.log(
       "Shelf API: [TITLE DEBUG] finalTitle length:",
-      finalTitle.length,
+      finalTitle.length
     );
   } else if (isX) {
     // For X bookmarks without clientTitle, try to fetch server-side
     console.log(
-      "Shelf API: [TITLE DEBUG] X bookmark without clientTitle, fetching server-side",
+      "Shelf API: [TITLE DEBUG] X bookmark without clientTitle, fetching server-side"
     );
     let fetchedTitle: string | null = null;
     if (normalized) {
       console.log(
         "Shelf API: [TITLE DEBUG] Calling fetchXTitle with:",
-        normalized,
+        normalized
       );
       fetchedTitle = await fetchXTitle(normalized);
       console.log(
         "Shelf API: [TITLE DEBUG] fetchXTitle result:",
-        fetchedTitle?.substring(0, 150),
+        fetchedTitle?.substring(0, 150)
       );
     }
 
@@ -341,48 +341,48 @@ export async function POST(req: Request) {
       finalTitle = fetchedTitle.trim();
       console.log(
         "Shelf API: [TITLE DEBUG] Using fetchXTitle result:",
-        finalTitle?.substring(0, 150),
+        finalTitle?.substring(0, 150)
       );
     } else {
       // Last resort: use metadata title if available
       finalTitle = metadata?.title?.trim() || null;
       console.log(
         "Shelf API: [TITLE DEBUG] Using metadata title as fallback:",
-        finalTitle?.substring(0, 150),
+        finalTitle?.substring(0, 150)
       );
     }
   } else if (shouldPreferClientTitleForLinkedIn && clientTitle) {
     finalTitle = clientTitle;
     console.log(
       "Shelf API: [TITLE DEBUG] LinkedIn - using clientTitle:",
-      finalTitle?.substring(0, 150),
+      finalTitle?.substring(0, 150)
     );
   } else {
     // Default: use metadata title, fall back to clientTitle if available
     finalTitle = metadata?.title ?? null;
     console.log(
       "Shelf API: [TITLE DEBUG] Default - using metadata title:",
-      finalTitle?.substring(0, 150),
+      finalTitle?.substring(0, 150)
     );
 
     if (!finalTitle && isValidClientTitle) {
       finalTitle = clientTitle.trim();
       console.log(
         "Shelf API: [TITLE DEBUG] No metadata title, using clientTitle:",
-        finalTitle?.substring(0, 150),
+        finalTitle?.substring(0, 150)
       );
     }
   }
 
   console.log(
     "Shelf API: [TITLE DEBUG] finalTitle after determination:",
-    finalTitle?.substring(0, 150),
+    finalTitle?.substring(0, 150)
   );
 
   // Handle image_url: if it's a base64 data URL, upload to storage first
   let imageUrlToStore = isTextNote
-    ? (parsed.data.image_url ?? null)
-    : (parsed.data.image_url ?? metadata?.imageUrl ?? null);
+    ? parsed.data.image_url ?? null
+    : parsed.data.image_url ?? metadata?.imageUrl ?? null;
 
   if (imageUrlToStore && imageUrlToStore.startsWith("data:image/")) {
     const uploadedUrl = await uploadScreenshot(imageUrlToStore, user.id);
@@ -415,7 +415,7 @@ export async function POST(req: Request) {
     titleToInsert = clientTitle.trim();
     console.log(
       "Shelf API: [TITLE DEBUG] Using clientTitle directly (highest priority):",
-      titleToInsert.substring(0, 150),
+      titleToInsert.substring(0, 150)
     );
   }
   // PRIORITY 2: Use finalTitle if it's valid
@@ -423,7 +423,7 @@ export async function POST(req: Request) {
     titleToInsert = finalTitle.trim();
     console.log(
       "Shelf API: [TITLE DEBUG] Using finalTitle:",
-      titleToInsert.substring(0, 150),
+      titleToInsert.substring(0, 150)
     );
   }
 
@@ -446,7 +446,7 @@ export async function POST(req: Request) {
         finalTitle: finalTitle?.substring(0, 150),
         metadataTitle: metadata?.title?.substring(0, 150),
         normalized,
-      },
+      }
     );
 
     // Try to extract username from URL path
@@ -464,7 +464,7 @@ export async function POST(req: Request) {
           titleToInsert = `Post by @${pathParts[0]}`;
           console.log(
             "Shelf API: [TITLE DEBUG] Generated title from URL path:",
-            titleToInsert,
+            titleToInsert
           );
         } else {
           titleToInsert = "X post";
@@ -473,14 +473,14 @@ export async function POST(req: Request) {
       } catch (e) {
         console.error(
           "Shelf API: [TITLE DEBUG] Failed to parse URL for fallback title",
-          e,
+          e
         );
         titleToInsert = "X post";
       }
     } else {
       titleToInsert = "X post";
       console.log(
-        "Shelf API: [TITLE DEBUG] No URL available, using generic title",
+        "Shelf API: [TITLE DEBUG] No URL available, using generic title"
       );
     }
   }
@@ -488,7 +488,7 @@ export async function POST(req: Request) {
   // CRITICAL FINAL CHECK: If we still don't have a title but have clientTitle, use it
   if (!titleToInsert && isValidClientTitle) {
     console.error(
-      "Shelf API: [TITLE DEBUG] CRITICAL - titleToInsert is null but we have valid clientTitle! Using it now.",
+      "Shelf API: [TITLE DEBUG] CRITICAL - titleToInsert is null but we have valid clientTitle! Using it now."
     );
     titleToInsert = clientTitle.trim();
   }
@@ -517,7 +517,7 @@ export async function POST(req: Request) {
     clientTitle.trim() !== "X"
   ) {
     console.error(
-      "Shelf API: [TITLE DEBUG] ABSOLUTE FINAL SAFETY - Setting titleToInsert from clientTitle",
+      "Shelf API: [TITLE DEBUG] ABSOLUTE FINAL SAFETY - Setting titleToInsert from clientTitle"
     );
     titleToInsert = clientTitle.trim();
   }
@@ -571,13 +571,13 @@ export async function POST(req: Request) {
     if (isDuplicate) {
       return NextResponse.json(
         { error: "DUPLICATE_BOOKMARK" },
-        { status: 400, headers: corsHeaders() },
+        { status: 400, headers: corsHeaders() }
       );
     }
 
     return NextResponse.json(
       { error: insertRes.error.message },
-      { status: 400, headers: corsHeaders() },
+      { status: 400, headers: corsHeaders() }
     );
   }
 
@@ -596,7 +596,7 @@ export async function POST(req: Request) {
           bookmark_id: insertRes.data.id,
           user_id: user.id,
           tag,
-        })),
+        }))
       );
       tags = tagsToInsert;
     }
@@ -655,7 +655,7 @@ export async function POST(req: Request) {
   console.log("Shelf API: responseData._debug exists:", !!responseData._debug);
   console.log(
     "Shelf API: Full responseData:",
-    JSON.stringify(responseData, null, 2).substring(0, 2000),
+    JSON.stringify(responseData, null, 2).substring(0, 2000)
   );
   console.log("=== End Shelf API response ===");
 
@@ -665,7 +665,7 @@ export async function POST(req: Request) {
 
   console.log(
     "Shelf API: [TITLE DEBUG] Response created, status:",
-    jsonResponse.status,
+    jsonResponse.status
   );
 
   return jsonResponse;

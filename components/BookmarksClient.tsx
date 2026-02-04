@@ -11,12 +11,12 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useExtensionInstalled } from "@/hooks/useExtensionInstalled";
 import { useAuth } from "@/hooks/useAuth";
 import { useBookmarkValidation } from "@/hooks/useBookmarkValidation";
-import {
-  BookmarkInput,
-  BookmarkList,
-  FilterTags,
-  AddUrlDialog,
-} from "./bookmarks";
+// Direct imports for better tree-shaking (avoiding barrel file)
+// See: https://vercel.com/blog/how-we-optimized-package-imports-in-next-js
+import { BookmarkInput } from "./bookmarks/BookmarkInput";
+import { BookmarkList } from "./bookmarks/BookmarkList";
+import { FilterTags } from "./bookmarks/FilterTags";
+import { AddUrlDialog } from "./bookmarks/AddUrlDialog";
 
 type BookmarksClientProps = {
   initial: Bookmark[];

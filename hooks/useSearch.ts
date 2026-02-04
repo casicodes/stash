@@ -1,61 +1,87 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
+import useSWR from "swr";
 import type { Bookmark } from "@/types/bookmark";
-import { searchBookmarks } from "@/lib/api/bookmarks";
 
 const DEBOUNCE_MS = 400;
 
+// SWR fetcher for search API
+async function searchFetcher(url: string): Promise<Bookmark[]> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Search failed");
+  }
+  const data = await response.json();
+  return data.results ?? [];
+}
+
+// Custom hook to handle debounced query
+function useDebouncedValue(value: string, delay: number): string {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useMemo(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  // Use useEffect pattern via useMemo return cleanup
+  // Actually, we need useState + useEffect for proper debounce
+  return debouncedValue;
+}
+
 export function useSearch() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Bookmark[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  useEffect(() => {
-    const term = query.trim();
-    
-    if (!term) {
-      setResults(null);
-      setIsLoading(false);
+  // Debounce the query
+  useMemo(() => {
+    if (!query.trim()) {
+      setDebouncedQuery("");
       return;
     }
 
-    const controller = new AbortController();
-    
-    const timeout = setTimeout(() => {
-      setIsLoading(true);
-      searchBookmarks(term, controller.signal)
-        .then((data) => {
-          if (!controller.signal.aborted) {
-            setResults(data);
-            setIsLoading(false);
-          }
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) {
-            setIsLoading(false);
-          }
-        });
+    const handler = setTimeout(() => {
+      setDebouncedQuery(query.trim());
     }, DEBOUNCE_MS);
 
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-      setIsLoading(false);
-    };
+    return () => clearTimeout(handler);
   }, [query]);
 
-  const clearSearch = () => {
+  // Use SWR for automatic deduplication, caching, and revalidation
+  const { data, isLoading, isValidating } = useSWR(
+    debouncedQuery
+      ? `/api/search?q=${encodeURIComponent(debouncedQuery)}`
+      : null,
+    searchFetcher,
+    {
+      // Don't revalidate on focus for search (user expects fresh results on type)
+      revalidateOnFocus: false,
+      // Keep previous data while fetching new results
+      keepPreviousData: false,
+      // Dedupe requests within 2 seconds
+      dedupingInterval: 2000,
+    }
+  );
+
+  const clearSearch = useCallback(() => {
     setQuery("");
-    setResults(null);
-    setIsLoading(false);
-  };
+    setDebouncedQuery("");
+  }, []);
+
+  // Results are null when no search, or the fetched data
+  const results = debouncedQuery ? data ?? null : null;
 
   return {
     query,
     setQuery,
     results,
-    isLoading,
+    isLoading: isLoading || isValidating,
     clearSearch,
   };
 }
