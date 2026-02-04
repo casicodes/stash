@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertDialog,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -101,6 +102,9 @@ export function RenameDialog({
           <AlertDialogTitle>
             Rename <span className="text-neutral-500">"{displayTitle}"</span> to
           </AlertDialogTitle>
+          <AlertDialogDescription className="sr-only">
+            Enter a new title for this bookmark
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="flex flex-col gap-4">
           <input

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
@@ -137,6 +138,9 @@ export function AddUrlDialog({
       >
         <AlertDialogHeader>
           <AlertDialogTitle>Add URL</AlertDialogTitle>
+          <AlertDialogDescription className="sr-only">
+            Enter a URL to add to your bookmarks
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
@@ -152,11 +156,10 @@ export function AddUrlDialog({
                 onKeyDown={handleKeyDown}
                 required
                 disabled={isAdding}
-                className={`w-full rounded-lg ring-1 shadow-sm focus-within:shadow pl-3 pr-10 py-2 focus:outline-none disabled:opacity-50 ${
-                  error
+                className={`w-full rounded-lg ring-1 shadow-sm focus-within:shadow pl-3 pr-10 py-2 focus:outline-none disabled:opacity-50 ${error
                     ? "ring-red-600 focus-within:ring-red-400"
                     : "ring-neutral-200 focus-within:ring-neutral-300"
-                }`}
+                  }`}
                 placeholder="https://"
               />
               <button
