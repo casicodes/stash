@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Shelf - Save Bookmarks",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Save any page to your Shelf bookmarks with one click",
   "permissions": [
     "activeTab",
@@ -40,6 +40,14 @@
       ],
       "matches": [
         "https://createshelf.vercel.app/*"
+      ]
+    },
+    {
+      "resources": [
+        "audio/celebration.mp3"
+      ],
+      "matches": [
+        "<all_urls>"
       ]
     }
   ],

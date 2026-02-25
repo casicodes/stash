@@ -111,7 +111,12 @@ async function saveBookmark(url, notes = null, clientTitle = null) {
       return;
     }
 
-    // Success
+    // Success - play celebration sound so user doesn't need to watch for success
+    try {
+      const audio = new Audio(chrome.runtime.getURL("audio/celebration.mp3"));
+      audio.volume = 0.7;
+      audio.play().catch(() => {});
+    } catch (_) {}
     showCard(savedCard);
     setTimeout(closePopup, 3000);
   } catch (error) {

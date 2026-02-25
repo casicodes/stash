@@ -211,11 +211,21 @@ console.log("Shelf: Content script loaded (overlay mode)");
       hideOverlay(0);
     });
 
+  // Play celebration sound on success
+  function playSuccessSound() {
+    try {
+      const audio = new Audio(chrome.runtime.getURL("audio/celebration.mp3"));
+      audio.volume = 0.7;
+      audio.play().catch(() => {});
+    } catch (_) {}
+  }
+
   // Listen for messages from background
   chrome.runtime.onMessage.addListener((message) => {
     console.log("Shelf: Received message", message);
     if (message.type === "SHELF_SAVE_RESULT") {
       if (message.status === "saved") {
+        playSuccessSound();
         showCard("shelf-saved");
         hideOverlay();
       } else if (message.status === "duplicate") {
