@@ -18,6 +18,7 @@ type TimeSectionProps = {
   newBookmarkIds: Set<string>;
   onRemoveNewTag: (id: string) => void;
   isFirst: boolean;
+  onOpenImageLightbox: (id: string) => void;
 };
 
 export function TimeSection({
@@ -30,6 +31,7 @@ export function TimeSection({
   newBookmarkIds,
   onRemoveNewTag,
   isFirst,
+  onOpenImageLightbox,
 }: TimeSectionProps) {
   const [isExpanded, setIsExpanded] = useState(category.defaultExpanded);
 
@@ -68,6 +70,7 @@ export function TimeSection({
               isNew={newBookmarkIds.has(bookmark.id)}
               onRemoveNewTag={onRemoveNewTag}
               isFirst={isFirst && index === 0}
+              onOpenImageLightbox={onOpenImageLightbox}
             />
           ))}
         </ul>

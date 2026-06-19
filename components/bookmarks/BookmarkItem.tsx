@@ -35,6 +35,7 @@ type BookmarkItemProps = {
   isNew?: boolean;
   onRemoveNewTag: (id: string) => void;
   isFirst?: boolean;
+  onOpenImageLightbox?: (id: string) => void;
 };
 
 export function BookmarkItem({
@@ -47,6 +48,7 @@ export function BookmarkItem({
   isNew = false,
   onRemoveNewTag,
   isFirst = false,
+  onOpenImageLightbox,
 }: BookmarkItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -314,6 +316,17 @@ export function BookmarkItem({
   }
 
   // Regular bookmark (link or image)
+  const bookmarkContent = (
+    <>
+      <BookmarkIcon
+        bookmark={bookmark}
+        viewModel={vm}
+        showNewTag={showNewTag}
+      />
+      <BookmarkMainContent bookmark={bookmark} viewModel={vm} />
+    </>
+  );
+
   return (
     <>
       <li
@@ -339,6 +352,14 @@ export function BookmarkItem({
         <div className="flex w-full items-center justify-between px-4">
           {isConfirmingDelete ? (
             confirmContent
+          ) : vm.isImageBookmark && onOpenImageLightbox ? (
+            <button
+              type="button"
+              onClick={() => onOpenImageLightbox(bookmark.id)}
+              className="flex min-w-0 flex-1 cursor-zoom-in items-center gap-3 py-2.5 text-left text-neutral-800 hover:text-neutral-950 focus:outline-none rounded-lg"
+            >
+              {bookmarkContent}
+            </button>
           ) : (
             <a
               href={bookmark.url}
@@ -346,12 +367,7 @@ export function BookmarkItem({
               rel="noreferrer"
               className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-2.5 text-left text-neutral-800 hover:text-neutral-950 focus:outline-none rounded-lg"
             >
-              <BookmarkIcon
-                bookmark={bookmark}
-                viewModel={vm}
-                showNewTag={showNewTag}
-              />
-              <BookmarkMainContent bookmark={bookmark} viewModel={vm} />
+              {bookmarkContent}
             </a>
           )}
           {isConfirmingDelete

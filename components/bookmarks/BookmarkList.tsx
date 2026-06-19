@@ -5,9 +5,11 @@ import type { Bookmark } from "@/types/bookmark";
 import { useExtensionInstalled } from "@/hooks/useExtensionInstalled";
 import { categorizeBookmarksByTime } from "@/lib/bookmarks/timeCategories";
 import { TimeSection } from "./TimeSection";
+import { ImageMasonryGrid } from "./ImageMasonryGrid";
 
 type BookmarkListProps = {
   bookmarks: Bookmark[];
+  layout?: "list" | "masonry";
   onDelete: (id: string) => void;
   onConfirmDelete: (id: string) => void | Promise<void>;
   onCancelDelete: () => void;
@@ -20,10 +22,12 @@ type BookmarkListProps = {
   onRemoveNewTag: (id: string) => void;
   searchQuery?: string;
   isSearching?: boolean;
+  onOpenImageLightbox: (id: string) => void;
 };
 
 export function BookmarkList({
   bookmarks,
+  layout = "list",
   onDelete,
   onConfirmDelete,
   onCancelDelete,
@@ -33,6 +37,7 @@ export function BookmarkList({
   onRemoveNewTag,
   searchQuery,
   isSearching = false,
+  onOpenImageLightbox,
 }: BookmarkListProps) {
   const { isInstalled } = useExtensionInstalled();
 
@@ -88,6 +93,21 @@ export function BookmarkList({
     );
   }
 
+  if (layout === "masonry") {
+    return (
+      <ImageMasonryGrid
+        bookmarks={bookmarks}
+        onDelete={onDelete}
+        onConfirmDelete={onConfirmDelete}
+        onCancelDelete={onCancelDelete}
+        pendingDeleteId={pendingDeleteId}
+        newBookmarkIds={newBookmarkIds}
+        onRemoveNewTag={onRemoveNewTag}
+        onOpenImageLightbox={onOpenImageLightbox}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col">
       {timeCategories.map((category, index) => (
@@ -102,6 +122,7 @@ export function BookmarkList({
           newBookmarkIds={newBookmarkIds}
           onRemoveNewTag={onRemoveNewTag}
           isFirst={index === 0}
+          onOpenImageLightbox={onOpenImageLightbox}
         />
       ))}
     </div>

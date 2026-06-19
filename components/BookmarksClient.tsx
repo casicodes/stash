@@ -17,6 +17,7 @@ import { BookmarkInput } from "./bookmarks/BookmarkInput";
 import { BookmarkList } from "./bookmarks/BookmarkList";
 import { FilterTags } from "./bookmarks/FilterTags";
 import { AddUrlDialog } from "./bookmarks/AddUrlDialog";
+import { ImageLightbox } from "./bookmarks/ImageLightbox";
 
 type BookmarksClientProps = {
   initial: Bookmark[];
@@ -29,6 +30,9 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTag>("all");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [lightboxBookmarkId, setLightboxBookmarkId] = useState<string | null>(
+    null
+  );
 
   // Hooks
   const {
@@ -98,8 +102,8 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
     return [allTag, ...otherTags];
   }, [uniqueTags]);
 
-  // Only show filters if: more than 5 bookmarks AND 2+ unique tags
-  const shouldShowFilters = items.length > 5 && uniqueTags.size > 1;
+  // Show filters when there is at least one tag beyond "all"
+  const shouldShowFilters = availableTags.length > 1;
 
   // Apply filter to search results or all items
   const displayed = useMemo(() => {
@@ -112,6 +116,44 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
 
     return source.filter((b) => b.tags?.includes(activeFilter));
   }, [searchResults, items, activeFilter]);
+
+  const imageBookmarksForLightbox = useMemo(() => {
+    const source =
+      activeFilter === "images"
+        ? displayed
+        : displayed.filter((b) => b.tags?.includes("images"));
+
+    return [...source].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [displayed, activeFilter]);
+
+  const lightboxIndex = useMemo(() => {
+    if (!lightboxBookmarkId) return null;
+    const index = imageBookmarksForLightbox.findIndex(
+      (bookmark) => bookmark.id === lightboxBookmarkId
+    );
+    return index >= 0 ? index : null;
+  }, [lightboxBookmarkId, imageBookmarksForLightbox]);
+
+  const handleOpenImageLightbox = useCallback((id: string) => {
+    setLightboxBookmarkId(id);
+  }, []);
+
+  const handleCloseImageLightbox = useCallback(() => {
+    setLightboxBookmarkId(null);
+  }, []);
+
+  const handleNavigateImageLightbox = useCallback(
+    (index: number) => {
+      const bookmark = imageBookmarksForLightbox[index];
+      if (bookmark) {
+        setLightboxBookmarkId(bookmark.id);
+      }
+    },
+    [imageBookmarksForLightbox]
+  );
 
 
   // Handle add bookmark
@@ -222,6 +264,7 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
       <div className="scrollbar-light flex-1 overflow-y-auto pb-8">
         <BookmarkList
           bookmarks={displayed}
+          layout={activeFilter === "images" ? "masonry" : "list"}
           onDelete={handleDelete}
           onConfirmDelete={handleConfirmDelete}
           onCancelDelete={handleCancelDelete}
@@ -231,8 +274,16 @@ export default function BookmarksClient({ initial }: BookmarksClientProps) {
           onRemoveNewTag={removeNewTag}
           searchQuery={query}
           isSearching={isSearching}
+          onOpenImageLightbox={handleOpenImageLightbox}
         />
       </div>
+
+      <ImageLightbox
+        bookmarks={imageBookmarksForLightbox}
+        selectedIndex={lightboxIndex}
+        onClose={handleCloseImageLightbox}
+        onNavigate={handleNavigateImageLightbox}
+      />
 
       {/* Add URL Dialog */}
       <AddUrlDialog
