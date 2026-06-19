@@ -3,19 +3,12 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { Bookmark } from "@/types/bookmark";
+import { getBookmarkImageSrc } from "@/lib/bookmarks/utils";
 
 const noop = () => () => {};
 
 function useIsClient() {
   return useSyncExternalStore(noop, () => true, () => false);
-}
-
-export function getBookmarkImageSrc(bookmark: Bookmark): string | null {
-  const imageUrl = bookmark.image_url?.trim();
-  if (imageUrl) return imageUrl;
-
-  const url = bookmark.url?.trim();
-  return url || null;
 }
 
 type ImageLightboxProps = {

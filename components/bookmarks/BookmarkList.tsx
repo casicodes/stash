@@ -109,7 +109,7 @@ export function BookmarkList({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-1">
       {timeCategories.map((category, index) => (
         <TimeSection
           key={category.id}

@@ -113,7 +113,7 @@ export function categorizeBookmarksByTime(
       id: `year-${year}`,
       label: `Year ${year}`,
       bookmarks: yearBookmarks,
-      defaultExpanded: false, // All year sections collapsed by default
+      defaultExpanded: true,
     });
   }
 

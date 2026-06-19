@@ -230,7 +230,7 @@ export function BookmarkItem({
     </div>
   );
 
-  const rowClassName = `rounded-xl relative overflow-hidden ${!isConfirmingDelete ? "hover:bg-neutral-100/50" : ""
+  const rowClassName = `rounded-lg relative overflow-hidden ${!isConfirmingDelete ? "hover:bg-neutral-100/50" : ""
     }`;
 
   const confirmContent = (
@@ -267,7 +267,7 @@ export function BookmarkItem({
             {isConfirmingDelete && (
               <motion.div
                 key="confirm-bg"
-                className="absolute inset-0 bg-red-50/90 rounded-xl -z-10"
+                className="absolute inset-0 bg-red-50/90 rounded-lg -z-10"
                 initial={confirmBgInitial}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -341,7 +341,7 @@ export function BookmarkItem({
           {isConfirmingDelete && (
             <motion.div
               key="confirm-bg"
-              className="absolute inset-0 bg-red-50/90 rounded-xl -z-10"
+              className="absolute inset-0 bg-red-50/90 rounded-lg -z-10"
               initial={confirmBgInitial}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ opacity: 0 }}

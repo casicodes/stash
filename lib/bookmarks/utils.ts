@@ -1,3 +1,13 @@
+import type { Bookmark } from "@/types/bookmark";
+
+export function getBookmarkImageSrc(bookmark: Bookmark): string | null {
+  const imageUrl = bookmark.image_url?.trim();
+  if (imageUrl) return imageUrl;
+
+  const url = bookmark.url?.trim();
+  return url || null;
+}
+
 export function getFaviconUrl(url: string): string | null {
   try {
     const domain = new URL(url).hostname;

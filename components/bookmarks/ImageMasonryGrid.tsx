@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Bookmark } from "@/types/bookmark";
 import { useNewTagTimer } from "@/hooks/useNewTagTimer";
 import { NewBadge } from "./NewBadge";
-import { getBookmarkImageSrc } from "./ImageLightbox";
+import { getBookmarkImageSrc } from "@/lib/bookmarks/utils";
 
 type ImageMasonryGridProps = {
   bookmarks: Bookmark[];
@@ -62,7 +62,7 @@ function ImageMasonryItem({
 
   return (
     <div
-      className={`relative mb-4 break-inside-avoid overflow-hidden rounded-xl ring-1 ring-neutral-100 ${isConfirmingDelete ? "cursor-default" : "cursor-zoom-in"}`}
+      className={`relative mb-4 break-inside-avoid overflow-hidden rounded-lg ring-1 ring-neutral-100 ${isConfirmingDelete ? "cursor-default" : "cursor-zoom-in"}`}
       onClick={(e) => {
         e.stopPropagation();
         if (!isConfirmingDelete) {
@@ -86,7 +86,7 @@ function ImageMasonryItem({
       <img
         src={imageSrc}
         alt={bookmark.title ?? "Saved image"}
-        className="w-full rounded-xl"
+        className="w-full rounded-lg"
         loading="lazy"
       />
 
@@ -98,7 +98,7 @@ function ImageMasonryItem({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-red-50/95 p-4"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-red-50/95 p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-center text-sm text-red-600">Delete this image?</p>
@@ -126,7 +126,7 @@ function ImageMasonryItem({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="pointer-events-none absolute inset-0 flex items-end justify-end gap-2 rounded-xl bg-black/20 p-2"
+            className="pointer-events-none absolute inset-0 flex items-end justify-end gap-2 rounded-lg bg-black/20 p-2"
           >
             <a
               href={sourceUrl}

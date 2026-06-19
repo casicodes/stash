@@ -40,7 +40,7 @@ export function TimeSection({
       <button
         type="button"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="sticky top-0 z-30 w-full flex items-center gap-2 py-3 px-4 text-left transition-colors group bg-white hover:bg-[#fafafa] rounded-lg"
+        className="sticky top-0 z-30 w-full flex items-center gap-2 py-3 px-4 mb-0.5 text-left transition-colors group bg-[#fafafa] hover:bg-[#f5f5f5] rounded-lg"
       >
         <span className="text-sm font-medium text-neutral-800">
           {category.label}
@@ -57,7 +57,7 @@ export function TimeSection({
         </svg>
       </button>
       {isExpanded && (
-        <ul>
+        <ul className="flex flex-col gap-0.5">
           {category.bookmarks.map((bookmark, index) => (
             <BookmarkItem
               key={bookmark.id}
